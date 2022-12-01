@@ -1,0 +1,7 @@
+Flask==2.2.2
+grpcio==1.50.0
+grpcio-tools==1.50.0
+numpy==1.23.5
+Pillow==9.3.0
+tflite-runtime==2.10.0
+
