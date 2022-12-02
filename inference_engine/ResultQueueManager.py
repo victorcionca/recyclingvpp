@@ -4,21 +4,6 @@ import requests
 from TaskData.TaskData import TaskData
 import sys
 
-'''
-[
-    {
-        "unique_task_id": "int",
-        "x1": "int",
-        "y1": "int",
-        "x2": int,
-        "y2": int
-        "result_data": "numpy_array",
-        "finish_time": "datatime object of the finish time"
-    }
-]
-'''
-
-
 def ResultsQueueLoop():
     while True:
         result = Globals.results_queue.get()
@@ -83,8 +68,6 @@ def ResultsQueueLoop():
 
             del Globals.task_dict[unique_task_id]
             Globals.task_thread_lock.release()
-            
-
 
     return
 
