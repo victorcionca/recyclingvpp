@@ -35,8 +35,8 @@ def grid(width, height, N, M, i, j):
     t.top_left_x = int(j*width/M)
     t.top_left_y = int(i*height/N)
 
-    t.bottom_right_x = int(t.top_left_x + width/M - 1)
-    t.bottom_right_y = int(t.top_left_y + height/N - 1)
+    t.bottom_right_x = int((j+1)*width/M - 1)
+    t.bottom_right_y = int((i+1)*height/N - 1)
 
     return t
 
@@ -86,8 +86,8 @@ def FTP(model_metadata, N, M):
 def get_first_partition(input_data, model_metadata, N, M):
     tiles = FTP(model_metadata, N, M)
     tile = tiles[0][0][0]
-    return input_data[:,tile.top_left_x:tile.bottom_right_x+1,
-                    tile.top_left_y:tile.bottom_right_y+1,:]
+    return input_data[:,tile.top_left_y:tile.bottom_right_y+1,
+                    tile.top_left_x:tile.bottom_right_x+1,:]
 
 def get_partition_details(input_data, model_metadata, N, M):
     tiles = FTP(model_metadata, N, M)
