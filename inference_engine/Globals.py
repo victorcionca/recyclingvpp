@@ -11,3 +11,11 @@ work_queue = queue.Queue()
 
 # Results queue
 results_queue = Queue()
+
+
+# Outbound net-communications queue
+# Two types of comm, state update and outbound comms
+net_outbound_list = []
+net_queue_lock = threading.Lock()
+
+
