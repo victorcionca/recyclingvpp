@@ -3,6 +3,12 @@ import grpc
 import requests_pb2_grpc as inference_grpc
 import requests_pb2 as inference_pb
 
+# Functionality
+# - inference engine is spawned as a thread
+# - load image
+# - partition
+# - process
+# - 
 
 def setup_aid_channel():
     options = [('grpc.max_send_message_length', 100*1024*1024),('grpc.max_receive_message_length', 100*1024*1024)]
