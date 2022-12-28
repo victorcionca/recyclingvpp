@@ -1,78 +1,95 @@
 {
-    "--comment--": "load",
-    "type": "load",
-    "file": "string"
+    "--comment--": "LoadImage",
+    "filename": "string",
+    "TaskID": "int"
 },
 {
-    "--comment--": "load_result",
-    "type": "load_result",
-    "file": "string",
-    "data": "string. base64 encoded bytes of numpy array",
-    "shape": ["list of ints indicating shape of input"]
+    "--comment--": "LoadImage result",
+    "filename": "string",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"],
+    "TaskID": "int"
 },
 {
-    "--comment--": "partition",
-    "type": "partition",
-    "input": "string. base64 encoded bytes of numpy array",
+    "--comment--": "PartitionData",
+    "data": "bytearray",
     "shape": ["list of ints indicating shape of input"],
     "convblockidx": "int. index of convolutional block, starts at 1",
-    "partitionspecs": {
-        "N": "int. number of partitions on vertical",
-        "M": "int. number of partitions on horizontal",
-        "x": "int. absolute position in input on horizontal",
-        "y": "int. absolute position in input on vertical"
-    }
+    "N": "int. number of partitions on vertical (rows)",
+    "M": "int. number of partitions on horizontal (cols)",
+    "TaskID": "int"
 },
 {
-    "--comment--": "partition result",
-    "type": "partition_result",
-    "tiles": [
+    "--comment--": "PartitionData result",
+    "TaskID": "int",
+    "Tiles": [
         {
-            "position": {
-                "N": "position in grid on vertical, starts at 1",
-                "M": "position in grid on horizontal, starts at 1",
-                "x": "absolute position in input on horizontal",
-                "y": "absolute position in input on vertical"
+            "tile_details": {
+                "Nidx": "position in grid on vertical, starts at 0",
+                "Midx": "position in grid on horizontal, starts at 0",
+                "top_x": "absolute coordinate in input",
+                "top_y": "absolute coordinate in input",
+                "bot_x": "absolute coordinate in input",
+                "bot_y": "absolute coordinate in input"
             },
-            "data": "string. base64 encoded bytes of numpy array",
+            "data": "bytearray",
             "shape": ["list of ints indicating shape of input"]
         }
     ]
 },
 {
-    "--comment--": "process",
-    "type": "process",
-    "input": "string. base64 encoded bytes of numpy array",
+    "--comment--": "ProcessRequest",
+    "type": "task",
+    "data": "bytearray",
     "shape": ["list of ints indicating shape of input"],
     "convblockidx": "int. index of convolutional block, starts at 1",
-    "core": "int. id of core to pin the inference to"
+    "core": "int. id of core to pin the inference to",
+    "tile_details": {
+        "Nidx": "position in grid on vertical, starts at 0",
+        "Midx": "position in grid on horizontal, starts at 0",
+        "top_x": "absolute coordinate in input",
+        "top_y": "absolute coordinate in input",
+        "bot_x": "absolute coordinate in input",
+        "bot_y": "absolute coordinate in input"
+    },
+    "TaskID": "int"
 },
 {
-    "--comment--": "process result",
-    "type": "process_result",
-    "data": "string. base64 encoded bytes of numpy array",
-    "shape": ["list of ints indicating shape of input"]
+    "--comment--": "ProcessRequest result",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"],
+    "tile_details": {
+        "Nidx": "position in grid on vertical, starts at 0",
+        "Midx": "position in grid on horizontal, starts at 0",
+        "top_x": "absolute coordinate in input",
+        "top_y": "absolute coordinate in input",
+        "bot_x": "absolute coordinate in input",
+        "bot_y": "absolute coordinate in input"
+    },
+    "TaskID": "int"
 },
 {
-    "--comment--": "assemble",
-    "type": "assemble",
+    "--comment--": "AssembleRequest",
+    "TaskID": "int",
     "convblockidx": "int. index of convolutional block, starts at 1",
-    "tiles": [
+    "Tiles": [
         {
-            "position": {
-                "N": "position in grid on vertical, starts at 1",
-                "M": "position in grid on horizontal, starts at 1",
-                "x": "absolute position in input on horizontal",
-                "y": "absolute position in input on vertical"
-            },
-            "data": "string. base64 encoded bytes of numpy array",
-            "shape": ["list of ints indicating shape of input"]
+            "data": "bytearray",
+            "shape": ["list of ints indicating shape of input"],
+            "tile_details": {
+                "Nidx": "position in grid on vertical, starts at 0",
+                "Midx": "position in grid on horizontal, starts at 0",
+                "top_x": "absolute coordinate in input",
+                "top_y": "absolute coordinate in input",
+                "bot_x": "absolute coordinate in input",
+                "bot_y": "absolute coordinate in input"
+            }
         }
     ]
 },
 {
-    "--comment--": "assemble result",
-    "type": "assemble_result",
-    "data": "string. base64 encoded bytes of numpy array",
+    "--comment--": "AssembleRequest result",
+    "TaskID": "int",
+    "data": "bytearray",
     "shape": ["list of ints indicating shape of input"]
 }

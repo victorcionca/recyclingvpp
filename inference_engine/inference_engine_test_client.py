@@ -41,9 +41,9 @@ def gen_partition_request(data, data_shape, N, M, convblockidx):
 
 def gen_assemble_request(partitions, convblockidx):
     """
-    Assembles the partitions in the list of inference_pb.Partition
-    with each partition
-    having a .x and .y top-left coordinates, .data and .shape
+    Assembles the partitions in the list of partition processing results.
+    Each partition has a "TaskID", "data", "shape", and "tile_details".
+    The partitions must be added to the "Tiles" field of the assembly request.
     """
     assemble_req = {}
     assemble_req["convblockidx"] = convblockidx
@@ -66,8 +66,18 @@ def gen_process_request(data, data_shape, tile_details, convblockidx, core, task
     return proc_req
 
 class ResultProcessing(threading.Thread):
+    """
+    Gather the results of processing tiles from the same conv block
+    and assemble.
+    """
 
     def __init__(self, taskids):
+        """
+        Parameters
+
+        * taskids   --  list of task ids corresponding to processing requests
+                        that are being executed
+        """
         super().__init__()
         self.results_queue = Globals.results_queue
         self.taskids = taskids
@@ -80,9 +90,6 @@ class ResultProcessing(threading.Thread):
             result = self.results_queue.get()
             logging.info(f"Received result for {result['TaskID']}, shape {result['shape']}")
             if result['TaskID'] not in self.taskids: continue
-            # Add the Nidx and Midx to the result
-            for k, v in self.taskids[result['TaskID']].items():
-                result[k] = v
             self.results.append(result)
         if len(self.results) > 1:
             # Assemble results
@@ -105,29 +112,33 @@ def test_inference_engine(filename, N, M):
     part_res = engine.PartitionData(part_req)
     logging.info("Resulting partitions:")
     proc_requests = []
-    task_ids = {}
+    task_ids = []
+    # Generate process requests for each tile, save and run afterwards
     for idx, tile in enumerate(part_res["Tiles"]):
-        logging.info(f"Tile N:{tile['Nidx']} M:{tile['Midx']} -- {tile['shape']} "
-                     f"({tile['top_x']}, {tile['top_y']}, {tile['bot_x']}, {tile['bot_y']})")
-        tile_details = {
-                'top_x': tile['top_x'], 'top_y': tile['top_y'],
-                'bot_x': tile['bot_x'], 'bot_y': tile['bot_y']
-                }
-        preq = gen_process_request(tile['data'], tile['shape'], tile_details, 1, idx+2, idx)
+        logging.info(f"Tile N:{tile['tile_details']['Nidx']} M:{tile['tile_details']['Midx']}"
+                     f"-- {tile['shape']} "
+                     f"({tile['tile_details']['top_x']}, {tile['tile_details']['top_y']}"
+                     f"{tile['tile_details']['bot_x']}, {tile['tile_details']['bot_y']})")
+        # Generate the proces request using the data from the partition response
+        preq = gen_process_request(tile['data'], tile['shape'], tile['tile_details'], 1, idx+2, idx)
         proc_requests.append(preq)
-        task_ids[idx] = {'Nidx':tile['Nidx'], 'Midx':tile['Midx']}
+        # Save the task id of the process request for the Results Processors
+        task_ids.append(idx)
     # Start result processing thread
     res_proc = ResultProcessing(task_ids)
     res_proc.start()
+    # Put the processing requests in the work queue
     for preq in proc_requests:
         Globals.work_queue.put(preq)
+    # Wait for results processing to be done
     res_proc.join()
+    # Collect the assembled result
     assembled = res_proc.result
     logging.info(f"Assembled shape for Task {assembled['TaskID']}: {assembled['shape']}")
     distr_proc_result = engine.deserialize_numpy(assembled['data'], assembled['shape'])
     # Process single for comparison
     tile_details = {
-            'top_x': 0, 'top_y': 0,
+             'Nidx': 0, 'Midx': 0, 'top_x': 0, 'top_y': 0,
             'bot_x': load_res['shape'][2]-1, 'bot_y': load_res['shape'][1]-1
             }
     single_proc = gen_process_request(load_res['data'], load_res['shape'], tile_details, 1, 1, 10)

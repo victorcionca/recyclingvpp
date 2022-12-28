@@ -108,16 +108,19 @@ def PartitionData(request):
         part_data = FTP.get_partition_data(p, input_data)
         tile["data"] = part_data.tobytes()
         tile["shape"] = list(part_data.shape)
-        tile["Nidx"] = p.Nidx
-        tile["Midx"] = p.Midx
-        tile["top_x"] = p.top_left_x
-        tile["bot_x"] = p.top_left_x + part_data.shape[2] - 1
-        tile["top_y"] = p.top_left_y
-        tile["bot_y"] = p.top_left_y + part_data.shape[1] - 1
+        tile["tile_details"] = {}
+        tile["tile_details"]["Nidx"] = p.Nidx
+        tile["tile_details"]["Midx"] = p.Midx
+        tile["tile_details"]["top_x"] = p.top_left_x
+        tile["tile_details"]["bot_x"] = p.top_left_x + part_data.shape[2] - 1
+        tile["tile_details"]["top_y"] = p.top_left_y
+        tile["tile_details"]["bot_y"] = p.top_left_y + part_data.shape[1] - 1
         response["Tiles"].append(tile)
     return response
 
 def AssembleData(request):
+    # Required fields below.
+    # Tiles is a list of processing responses.
     reqd_fields = ["TaskID", "convblockidx", "Tiles"]
     for f in reqd_fields:
         if f not in request:
@@ -135,8 +138,8 @@ def AssembleData(request):
     # 1. Find the maximum Nidx and Midx
     N, M = 0,0
     for tile in request["Tiles"]:
-        N = max(N, tile["Nidx"])
-        M = max(M, tile["Midx"])
+        N = max(N, tile["tile_details"]["Nidx"])
+        M = max(M, tile["tile_details"]["Midx"])
     # 2. Calculate the final partition width and height
     part_width = output_shape[2]/(M+1)
     part_height = output_shape[1]/(N+1)
@@ -146,8 +149,8 @@ def AssembleData(request):
         tile_data = deserialize_numpy(tile["data"], tile["shape"])
         #print((position.x, position.y), (bot_right_x, bot_right_y), top_x_offset,top_y_offset,bot_x_offset,bot_y_offset, tile.shape)
         output[:,
-                int(part_height*tile["Nidx"]):int(part_height*(tile["Nidx"]+1)),
-                int(part_width*tile["Midx"]):int(part_width*(tile["Midx"]+1)),
+                int(part_height*tile["tile_details"]["Nidx"]):int(part_height*(tile["tile_details"]["Nidx"]+1)),
+                int(part_width*tile["tile_details"]["Midx"]):int(part_width*(tile["tile_details"]["Midx"]+1)),
                 :] = tile_data
     # Encode response with output and return
     output_bytes = output.tobytes()
@@ -167,6 +170,7 @@ class InferenceHandler(threading.Thread):
 
     def ProcessData(self, request):
         # Validate the request
+        # tile_details should contain Nidx, Midx, top/bot_x/y
         reqd_fields = ["data", "tile_details", "shape", "convblockidx", "core", "TaskID"]
         for f in reqd_fields:
             if f not in request:
@@ -242,6 +246,7 @@ class InferenceHandler(threading.Thread):
             response["TaskID"] = request["TaskID"]
             response["data"] = output_bytes
             response["shape"] = list(maxpool_output.shape)
+            response["tile_details"] = {'Nidx': tile['Nidx'], 'Midx': tile['Midx']}
             # Insert request into the results queue
             self.results_queue.put(response)
 
