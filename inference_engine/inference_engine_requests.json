@@ -1,0 +1,95 @@
+{
+    "--comment--": "LoadImage",
+    "filename": "string",
+    "TaskID": "int"
+},
+{
+    "--comment--": "LoadImage result",
+    "filename": "string",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"],
+    "TaskID": "int"
+},
+{
+    "--comment--": "PartitionData",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"],
+    "convblockidx": "int. index of convolutional block, starts at 1",
+    "N": "int. number of partitions on vertical (rows)",
+    "M": "int. number of partitions on horizontal (cols)",
+    "TaskID": "int"
+},
+{
+    "--comment--": "PartitionData result",
+    "TaskID": "int",
+    "Tiles": [
+        {
+            "tile_details": {
+                "Nidx": "position in grid on vertical, starts at 0",
+                "Midx": "position in grid on horizontal, starts at 0",
+                "top_x": "absolute coordinate in input",
+                "top_y": "absolute coordinate in input",
+                "bot_x": "absolute coordinate in input",
+                "bot_y": "absolute coordinate in input"
+            },
+            "data": "bytearray",
+            "shape": ["list of ints indicating shape of input"]
+        }
+    ]
+},
+{
+    "--comment--": "ProcessRequest",
+    "type": "task",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"],
+    "convblockidx": "int. index of convolutional block, starts at 1",
+    "core": "int. id of core to pin the inference to",
+    "tile_details": {
+        "Nidx": "position in grid on vertical, starts at 0",
+        "Midx": "position in grid on horizontal, starts at 0",
+        "top_x": "absolute coordinate in input",
+        "top_y": "absolute coordinate in input",
+        "bot_x": "absolute coordinate in input",
+        "bot_y": "absolute coordinate in input"
+    },
+    "TaskID": "int"
+},
+{
+    "--comment--": "ProcessRequest result",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"],
+    "tile_details": {
+        "Nidx": "position in grid on vertical, starts at 0",
+        "Midx": "position in grid on horizontal, starts at 0",
+        "top_x": "absolute coordinate in input",
+        "top_y": "absolute coordinate in input",
+        "bot_x": "absolute coordinate in input",
+        "bot_y": "absolute coordinate in input"
+    },
+    "TaskID": "int"
+},
+{
+    "--comment--": "AssembleRequest",
+    "TaskID": "int",
+    "convblockidx": "int. index of convolutional block, starts at 1",
+    "Tiles": [
+        {
+            "data": "bytearray",
+            "shape": ["list of ints indicating shape of input"],
+            "tile_details": {
+                "Nidx": "position in grid on vertical, starts at 0",
+                "Midx": "position in grid on horizontal, starts at 0",
+                "top_x": "absolute coordinate in input",
+                "top_y": "absolute coordinate in input",
+                "bot_x": "absolute coordinate in input",
+                "bot_y": "absolute coordinate in input"
+            }
+        }
+    ]
+},
+{
+    "--comment--": "AssembleRequest result",
+    "TaskID": "int",
+    "data": "bytearray",
+    "shape": ["list of ints indicating shape of input"]
+}
