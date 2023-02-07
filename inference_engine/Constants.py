@@ -3,8 +3,11 @@ IPERF_PORT = 3114
 REST_PORT = 6502
 
 HALT_ENDPOINT = 'halt'
-TASK_ALLOCATION = 'allocate_task'
+TASK_ALLOCATION = "allocate_high_task"
 TASK_UPDATE = 'update_task'
+TASK_REALLOCATION = "reallocate_high_task"
+TASK_FORWARD = "forward_task"
+
 
 CONTROLLER_DEFAULT_ROUTE = "/controller"
 CONTROLLER_DEFAULT_PORT = 6502
