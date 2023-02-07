@@ -49,9 +49,19 @@ def serialize_numpy(array):
     array64 = base64.encodebytes(array_bytes)
     return array64, array.shape
 
-def deserialize_numpy(array_bytes, shape):
+def deserialize_numpy64(array, shape):
     """
     Deserialize a numpy array that is represented as base64 encoded bytes.
+    Assumes original data is float32
+    Returns: numpy array.
+    """
+    array_bytes = base64.decodebytes(array64)
+    array = np.frombuffer(array_bytes, dtype=np.float32)
+    return array.reshape(shape)
+
+def deserialize_numpy(array_bytes, shape):
+    """
+    Deserialize a numpy array that is represented as bytes.
     Assumes original data is float32
     Returns: numpy array.
     """
@@ -106,8 +116,7 @@ def PartitionData(request):
     for p in part_details:
         tile = dict()
         part_data = FTP.get_partition_data(p, input_data)
-        tile["data"] = part_data.tobytes()
-        tile["shape"] = list(part_data.shape)
+        tile["data"], tile["shape"] = serialize_numpy(part_data)
         tile["tile_details"] = {}
         tile["tile_details"]["Nidx"] = p.Nidx
         tile["tile_details"]["Midx"] = p.Midx
@@ -146,7 +155,7 @@ def AssembleData(request):
     # Load the partition data into the output matrix
     for tile in request["Tiles"]:
         # Restore tile data to proper shape
-        tile_data = deserialize_numpy(tile["data"], tile["shape"])
+        tile_data = deserialize_numpy64(tile["data"], tile["shape"])
         #print((position.x, position.y), (bot_right_x, bot_right_y), top_x_offset,top_y_offset,bot_x_offset,bot_y_offset, tile.shape)
         output[:,
                 int(part_height*tile["tile_details"]["Nidx"]):int(part_height*(tile["tile_details"]["Nidx"]+1)),
@@ -182,7 +191,7 @@ class InferenceHandler(threading.Thread):
             # This is the child
             os.sched_setaffinity(0, [request["core"]])
             input_shape = request["shape"]
-            input_data = deserialize_numpy(request["data"], input_shape)
+            input_data = deserialize_numpy64(request["data"], input_shape)
             convblockidx = request["convblockidx"]
             # Run the processing    -------------------------------
             # Load the metadata, to obtain the shape of the input
@@ -244,7 +253,7 @@ class InferenceHandler(threading.Thread):
             # Build request
             response = dict()
             response["TaskID"] = request["TaskID"]
-            response["data"] = output_bytes
+            response["data"], _ = serialize_numpy(output_bytes)
             response["shape"] = list(maxpool_output.shape)
             response["tile_details"] = {'Nidx': tile['Nidx'], 'Midx': tile['Midx']}
             # Insert request into the results queue
