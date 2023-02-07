@@ -4,6 +4,7 @@ import requests
 from TaskData.TaskData import TaskData
 import sys
 
+
 def ResultsQueueLoop():
     while True:
         result = Globals.results_queue.get()
@@ -16,9 +17,9 @@ def ResultsQueueLoop():
 
         finish_time = result["finish_time"]
 
-        #Check to see if theres a disruption and if theres no disruption we contact the controller to update state
-        if DisruptionCheck(finish_time, current_block.estimated_finish_time,
-                        current_block.unique_task_id, Globals.task_dict[unique_task_id]["task"].dnn_id):
+        # Check to see if theres a disruption and if theres no disruption we contact the controller to update state
+        if not DisruptionCheck(finish_time, current_block.estimated_finish_time,
+                               current_block.unique_task_id, Globals.task_dict[unique_task_id]["task"].dnn_id):
             Globals.net_queue_lock.acquire()
 
             Globals.net_outbound_list.append({
@@ -30,6 +31,8 @@ def ResultsQueueLoop():
             })
 
             Globals.net_queue_lock.release()
+
+        # Partition Data Here
 
         is_finished, outer_index, inner_index = FindNextBlock(
             Globals.task_dict[unique_task_id]["task"], result["x1"], result["y1"], result["x2"], result["y2"])
@@ -103,11 +106,13 @@ def FindNextBlock(task: TaskData, x1, y1, x2, y2):
 
 # Need to update controller with finished status of task if not violateed
 def state_update(finish_time, unique_task_id, dnn_id):
-    requests.post(f'{sys.argv[1]}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_DEFAULT_ROUTE}{Constants.CONTROLLER_DAG_DISRUPTION}', json={
-        "finish_time": finish_time.timestamp() * 1000,
-        "partition_id": unique_task_id,
-        "partition_dnn_id": dnn_id
-    })
+    requests.post(
+        f'{sys.argv[1]}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_DEFAULT_ROUTE}{Constants.CONTROLLER_DAG_DISRUPTION}',
+        json={
+            "finish_time": finish_time.timestamp() * 1000,
+            "partition_id": unique_task_id,
+            "partition_dnn_id": dnn_id
+        })
     return
 
 
@@ -117,7 +122,8 @@ def DisruptionCheck(finish_time, estimated_finish_time, block_id, DNN_ID):
     violated = finish_time > estimated_finish_time
     if violated:
         requests.post(
-            f'{sys.argv[1]}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_DEFAULT_ROUTE}{Constants.CONTROLLER_DAG_DISRUPTION}', json={
+            f'{sys.argv[1]}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_DEFAULT_ROUTE}{Constants.CONTROLLER_DAG_DISRUPTION}',
+            json={
                 "partition_dnn_id": DNN_ID,
                 "partition_id": block_id,
                 "finish_time": finish_time.timestamp() * 1000

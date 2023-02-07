@@ -11,7 +11,7 @@ hostName = "localhost"
 device_host_list = []
 
 
-class RestInferface(BaseHTTPRequestHandler):
+class RestInterface(BaseHTTPRequestHandler):
 
     def _set_response(self):
         self.send_response(200)
@@ -134,7 +134,7 @@ class RestInferface(BaseHTTPRequestHandler):
         return 'Halted'
 
 
-def run(server_class=HTTPServer, handler_class=RestInferface, port=Constants.REST_PORT):
+def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)

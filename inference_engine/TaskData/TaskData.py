@@ -2,12 +2,12 @@ import datetime
 import json
 
 
-class TaskData():
+class TaskData:
     # True is high comp, false is low comp
     dnn_type = False
 
     # Host Address of the source of the DNN
-    source = ""
+    source: str = ""
 
     # Deadline
     deadline = datetime.datetime.now()
@@ -39,18 +39,20 @@ class TaskData():
     # ID of current_conv_block
     conv_idx = int()
 
-    def __init__(self, jsonInput):
+    def __init__(self, jsonInput=None):
+        if jsonInput is None:
+            return
         self.dnn_type = bool(int(jsonInput["type"]))
         self.source = jsonInput["source"]
         base_datetime = datetime.datetime(1970, 1, 1)
         self.deadline = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(jsonInput["deadline"])))
+                        (datetime.timedelta(0, 0, 0, int(jsonInput["deadline"])))
         self.estimated_start_time = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(
-                jsonInput["estimated_start_time"])))
+                                    (datetime.timedelta(0, 0, 0, int(
+                                        jsonInput["estimated_start_time"])))
         self.estimated_finish_time = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(
-                jsonInput["estimated_finish_time"])))
+                                     (datetime.timedelta(0, 0, 0, int(
+                                         jsonInput["estimated_finish_time"])))
         self.dnn_id = int(jsonInput["dnn_id"])
         self.current_block = int(jsonInput["current_block"])
         self.N = int(jsonInput["N"])
@@ -60,14 +62,25 @@ class TaskData():
 
         self.outer_blocks = {
             outer_index: {
-                inner_index: TaskBlock(inner_value["estimated_start_time"], inner_value["estimated_finish_time"], inner_value["group_block_id"], inner_value["block_id"], inner_value["allocated_device"], inner_value["original_layer_ids"], inner_value["unique_task_id"], inner_value["in_map"], inner_value["N"], inner_value["M"], inner_value["conv_idx"], inner_value["state_update_comm_start"], inner_value["output_upload_start_time"]) for inner_index, inner_value in outer_value.items()
+                inner_index: TaskBlock(inner_value["estimated_start_time"], inner_value["estimated_finish_time"],
+                                       inner_value["group_block_id"], inner_value["block_id"],
+                                       inner_value["allocated_device"], inner_value["original_layer_ids"],
+                                       inner_value["unique_task_id"], inner_value["in_map"], inner_value["N"],
+                                       inner_value["M"], inner_value["conv_idx"],
+                                       inner_value["state_update_comm_start"], inner_value["output_upload_start_time"])
+                for inner_index, inner_value in outer_value.items()
             } for outer_index, outer_value in jsonInput["group_blocks"].items()
         }
 
     def update(self, jsonInput):
         self.outer_blocks = {
             outer_index: {
-                inner_index: TaskBlock(inner_value["estimated_start_time"], inner_value["estimated_finish_time"], inner_value["group_block_id"], inner_value["block_id"], inner_value["allocated_device"], inner_value["original_layer_ids"], inner_value["unique_task_id"], inner_value["in_map"], inner_value["N"], inner_value["M"], inner_value["conv_idx"]) for inner_index, inner_value in outer_value.items()
+                inner_index: TaskBlock(inner_value["estimated_start_time"], inner_value["estimated_finish_time"],
+                                       inner_value["group_block_id"], inner_value["block_id"],
+                                       inner_value["allocated_device"], inner_value["original_layer_ids"],
+                                       inner_value["unique_task_id"], inner_value["in_map"], inner_value["N"],
+                                       inner_value["M"], inner_value["conv_idx"]) for inner_index, inner_value in
+                outer_value.items()
             } for outer_index, outer_value in jsonInput["group_blocks"].items()
         }
         return
@@ -125,7 +138,7 @@ class TaskData():
         return json.dumps(jsonObject, indent=4)
 
 
-class TaskBlock():
+class TaskBlock:
     # estimated start time of task
     estimated_start_time = datetime.datetime.now()
 
@@ -162,14 +175,17 @@ class TaskBlock():
     # Output comm time
     output_upload_start_time = datetime.datetime.now()
 
-    def __init__(self, estimated_start, estimated_finish, group_block_id, block_id, allocated_device, inner_layer_ids, unique_task_id, in_map, N, M, conv_idx, state_update_comm_time, output_upload_start_time):
-        self.input_tile = TileRegion(
-            in_map["x1"], in_map["y1"], in_map["x2"], in_map["y2"])
+    def __init__(self, estimated_start=0, estimated_finish=0, group_block_id=0, block_id=0, allocated_device="",
+                 inner_layer_ids=[], unique_task_id=0, in_map=None, N=0, M=0, conv_idx=0, state_update_comm_time=0,
+                 output_upload_start_time=0):
+        if in_map is not None:
+            self.input_tile = TileRegion(
+                in_map["x1"], in_map["y1"], in_map["x2"], in_map["y2"])
         base_datetime = datetime.datetime(1970, 1, 1)
         self.estimated_start_time = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(estimated_start)))
+                                    (datetime.timedelta(0, 0, 0, int(estimated_start)))
         self.estimated_finish_time = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(estimated_finish)))
+                                     (datetime.timedelta(0, 0, 0, int(estimated_finish)))
         self.group_block_id = int(group_block_id)
         self.block_id = int(block_id)
         self.allocated_device = allocated_device
@@ -180,14 +196,12 @@ class TaskBlock():
         self.N = N
         self.M = M
         self.conv_idx = conv_idx
-        self.state_update_comm_start = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(state_update_comm_time)))
-        self.output_upload_start_time = base_datetime + \
-            (datetime.timedelta(0, 0, 0, int(output_upload_start_time)))
+        self.state_update_comm_start = base_datetime + (datetime.timedelta(0, 0, 0, int(state_update_comm_time)))
+        self.output_upload_start_time = base_datetime + (datetime.timedelta(0, 0, 0, int(output_upload_start_time)))
         return
 
 
-class TileRegion():
+class TileRegion:
     x1 = int()
     x2 = int()
     y1 = int()
