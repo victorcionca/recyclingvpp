@@ -177,6 +177,7 @@ class InferenceHandler(threading.Thread):
         self.running = False
         self.work_queue = Globals.work_queue
         self.results_queue = Globals.results_queue
+        self.proc_tasks = {core:None for core in range(4)}
 
     def ProcessData(self, request):
         # Validate the request
@@ -259,6 +260,9 @@ class InferenceHandler(threading.Thread):
             response["tile_details"] = {'Nidx': tile['Nidx'], 'Midx': tile['Midx']}
             # Insert request into the results queue
             self.results_queue.put(response)
+        else:
+            # Still in the parent. Record the PID and assign to the core
+            self.proc_tasks[request["core"]] = childpid
 
     def run(self):
         """
@@ -276,3 +280,10 @@ class InferenceHandler(threading.Thread):
             elif task['type'] == "task":
                 logging.info("Processing task received")
                 self.ProcessData(task)
+            elif task['type'] == "prune":
+                # Kill the process on the target core
+                target_core = task['core_id']
+                if target_core >= 0 and target_core < 4\
+                        and self.proc_tasks[target_core] is not None:
+                            os.kill(signal.SIGKILL, self.proc_tasks[target_core])
+                            self.proc_tasks[target_core] = None
