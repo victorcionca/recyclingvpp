@@ -1,5 +1,8 @@
 import threading
 import logging
+from inference_engine.OutboundComms import outbound_comm_loop
+from inference_engine.WorkWaitingQueue import work_loop
+from inference_engine.inference_engine import InferenceHandler
 from rest_server import run
 from iperf_server import run_IperfServer
 import requests
@@ -32,9 +35,23 @@ def ThreadStart(logging, function, thread_name):
 
 def hello(logging):
     logging.info("Main    : Registering with controller")
-    host_ip = sys.argv[1]
+    host_ip = CONTROLLER_HOST_NAME
     requests.post(
         f'{host_ip}{CONTROLLER_DEFAULT_ROUTE}{CONTROLLER_REGISTER_DEVICE}')
+
+
+def start_inference_engine(logging):
+    inference_handler = InferenceHandler()
+    ThreadStart(logging, inference_handler.run, "Inference Engine")
+    return
+
+
+def startOutboundComms(logging):
+    ThreadStart(logging, outbound_comm_loop, "Outbound Comm Loop")
+
+
+def start_WorkWaitingQueue(logging):
+    ThreadStart(logging, work_loop, "Work Waiting Queue")
 
 
 def main():
@@ -43,7 +60,9 @@ def main():
     start_REST(logging)
     start_IPERF(logging)
     start_ResultsQueueManager(logging)
-    # run_GRPC_Server()
+    start_inference_engine(logging)
+    startOutboundComms(logging)
+    start_WorkWaitingQueue(logging)
 
     return
 
