@@ -24,6 +24,7 @@ import os
 from random import shuffle
 import fused_tiled_partitioning as FTP
 import numpy as np
+import base64
 from PIL import Image
 import threading
 
@@ -55,7 +56,7 @@ def deserialize_numpy64(array, shape):
     Assumes original data is float32
     Returns: numpy array.
     """
-    array_bytes = base64.decodebytes(array64)
+    array_bytes = base64.decodebytes(array)
     array = np.frombuffer(array_bytes, dtype=np.float32)
     return array.reshape(shape)
 

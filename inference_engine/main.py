@@ -4,7 +4,7 @@ from rest_server import run
 from iperf_server import run_IperfServer
 import requests
 import sys
-import Constants
+from Constants.Constants import *
 from ResultQueueManager import ResultsQueueLoop
 # from grpc_server import run_GRPC_Server
 
@@ -34,7 +34,7 @@ def hello(logging):
     logging.info("Main    : Registering with controller")
     host_ip = sys.argv[1]
     requests.post(
-        f'{host_ip}{Constants.CONTROLLER_DEFAULT_ROUTE}{Constants.CONTROLLER_REGISTER_DEVICE}')
+        f'{host_ip}{CONTROLLER_DEFAULT_ROUTE}{CONTROLLER_REGISTER_DEVICE}')
 
 
 def main():

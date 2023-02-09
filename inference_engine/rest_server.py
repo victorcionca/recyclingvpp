@@ -1,12 +1,23 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import logging
-import Constants
+import queue
+from Constants.Constants import *
 import Globals
-from TaskData.TaskData import TaskData
-import numpy as np
+from inference_engine.inference_engine import LoadImage, PartitionData, serialize_numpy
+from inference_engine.utils.DataProcessing import from_ms_since_epoch
+from model.NetworkCommModels.TaskForwaring import TaskForwarding
+from model.OutboundComm import OutboundComm
+from enums.OutboundCommTypes import OutboundCommType
+from OutboundComms import add_task_to_queue
+from inference_engine.inference_engine import deserialize_numpy64
+from inference_engine.model.TaskData.HighCompResult import HighCompResult
+from inference_engine.inference_engine import AssembleData
+from WorkWaitingQueue import add_task
+from datetime import datetime as dt
 
 hostName = "localhost"
+
 
 device_host_list = []
 
@@ -19,122 +30,293 @@ class RestInterface(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        handlers = {
-            Constants.HALT_ENDPOINT: self.halt_tasks,
-            Constants.TASK_ALLOCATION: self.allocate_task,
-            Constants.TASK_UPDATE: self.task_update,
-        }
-
-        # Try to convert to json
-        json_request = None
+        json_request = {}
 
         # Process the request data and extract the input, target core, etc.
         request_str = self.requestline
         request_body = self.rfile.read(int(self.headers['Content-Length']))
 
+        response_json = ""
+
+        response_code = 200
+
         try:
-            json_request = json.loads(request_body)
+            json_request: dict = json.loads(request_body)
+
+            if self.path == HALT_ENDPOINT:
+                self.halt_task()
+            elif self.path == TASK_ALLOCATION:
+                self.task_allocation_function(json_request_body=json_request)
+            elif self.path == TASK_FORWARD:
+                self.task_forward(json_request_body=json_request)
+            elif self.path == TASK_REALLOCATION:
+                pass
+            elif self.path == TASK_UPDATE:
+                pass
+
         except json.JSONDecodeError:
             print(f"Received request was not json: {request_str}")
+            response_code = 400
             return
 
-        if "type" not in json_request or json_request["type"] not in handlers:
-            # TODO error
-            return
-
-        response_json = handlers[json_request["type"]](json_request)
-        self.send_response(200)
+        self.send_response(response_code)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
 
         self.wfile.write(bytes(response_json, "utf8"))
 
-    def allocate_task(self, request):
-        task_data = request["task"]
-        input_data_bytes = request["input_data"]
+    def halt_task(self):
+        Globals.work_queue_lock.acquire(blocking=True)
+        Globals.assembly_dict_lock.acquire(blocking=True)
+        Globals.net_queue_lock.acquire(blocking=True)
+        Globals.dnn_hold_lock.acquire(blocking=True)
+        Globals.work_waiting_queue_lock.acquire(blocking=True)
 
-        # TODO double check that this is how I receive data from controller
-        array = np.frombuffer(input_data_bytes, dtype=np.float32)
+        Globals.work_queue = queue.Queue()
+        Globals.results_queue = queue.Queue()
 
-        Globals.task_thread_lock.acquire()
+        Globals.assembly_dict.clear()
+        Globals.net_outbound_list.clear()
+        Globals.dnn_hold_dict.clear()
+        Globals.work_waiting_queue.clear()
+        Globals.core_map = {
+            0: -1,
+            1: -1,
+            2: -1,
+            3: -1
+        }
 
-        current_block_id = task_data["current_block"]
+        Globals.work_queue.put({"type": "halt"})
 
-        task_obj = None
-        if current_block_id not in Globals.task_dict:
-            task_obj = TaskData(task_data)
-            Globals.task_dict[current_block_id] = {
-                "task": task_obj, "input_data": []}
-        else:
-            task_obj = Globals.task_dict[current_block_id]["task"]
+        Globals.work_queue_lock.release()
+        Globals.assembly_dict_lock.release()
+        Globals.net_queue_lock.release()
+        Globals.dnn_hold_lock.release()
+        Globals.work_waiting_queue_lock.release()
 
-        x1 = int()
-        y1 = int()
-        x2 = int()
-        y2 = int()
+        return
 
-        outer_block = 0
-        for outer_val in task_obj.outer_blocks.values():
-            exit_loop = False
-            for inner_value in outer_val.values():
-                if inner_value.unique_task_id == current_block_id:
-                    x1 = inner_value.input_tile.x1
-                    y1 = inner_value.input_tile.y1
-                    x2 = inner_value.input_tile.x2
-                    y2 = inner_value.input_tile.y2
-                    exit_loop = True
-                    break
-            if exit_loop:
-                break
-            outer_block += 1
+    def task_assembly(self, json_request_body: dict):
+        taskForwardObj: TaskForwarding = TaskForwarding()
+        taskForwardObj.create_task_forwarding_from_dict(json_request_body)
+        convidx = taskForwardObj.convidx
 
-        Globals.task_dict[current_block_id]["input_data"].append(
-            {"x1": x1, "x2": x2, "y1": y1, "y2": y2, "data": input_data_bytes})
+        total_partition_count = len(
+            taskForwardObj.high_comp_result.tasks[convidx].partitioned_tasks)
+        key = f"{taskForwardObj.high_comp_result.dnn_id}_{convidx}"
 
-        if len(Globals.task_dict[current_block_id]["input_data"]) == task_obj.input_part_count:
-            output_partition = False if outer_block + 1 >= len(task_obj.outer_blocks) or task_obj.outer_blocks.size() == 1 else True
-            output_N = 1 if not output_partition else task_obj.outer_blocks[outer_block + 1][0].N
-            output_M = 1 if not output_partition else task_obj.outer_blocks[outer_block + 1][0].M
-
-            queue_object = {
-                "type": "task",
-                "input_assembly": True if task_obj.input_part_count > 1 else False,
-                "Input_partition_N": task_obj.N,
-                "input_partition_M": task_obj.M,
-                "input_payload": Globals.task_dict[current_block_id]["input_data"],
-                "unique_task_id": current_block_id,
-                "conv_idx": task_obj.conv_idx,
-                "output_partition": output_partition,
-                "output_N": output_N,
-                "output_M": output_M
+        Globals.assembly_dict_lock.acquire(blocking=True)
+        if key not in Globals.assembly_dict.keys():
+            Globals.assembly_dict[key] = {
+                "partition_count": total_partition_count,
+                "tiles": []
             }
 
-            Globals.work_queue.put(queue_object)
-    
-        Globals.task_thread_lock.release()
+        Globals.assembly_dict[key]["tiles"].append(taskForwardObj)
 
-        return 'Allocated'
+        if len(Globals.assembly_dict[key]["tiles"]) == Globals.assembly_dict[key]["partition_count"]:
+            finish_times = []
+            assemble_obj = {
+                "TaskID": taskForwardObj.high_comp_result.unique_dnn_id,
+                "convblockidx": convidx,
+                "Tiles": []
+            }
+            for tile in Globals.assembly_dict[key]["tiles"]:
+                finish_times.append({
+                    "partition_id": tile.partition_id,
+                    "finish_time": tile.high_comp_result.tasks[convidx].partitioned_tasks[tile.partition_id].actual_finish.timestamp() * 1000
+                })
 
-    def task_update(self, request):
-        Globals.task_thread_lock.acquire()
-        current_block_id = 0
-        dnn_id = int(request["task"]["dnn_id"])
+                assemble_obj["Tiles"] = {
+                    "data": deserialize_numpy64(tile.data, tile.shape),
+                    "shape": tile.shape,
+                    "tile_details": {
+                        "Nidx": tile.nidx,
+                        "Midx": tile.midx,
+                        "top_x": tile.top_x,
+                        "top_y": tile.top_y,
+                        "bot_x": tile.bot_x,
+                        "bot_y": tile.bot_y
+                    }
+                }
 
-        for DNN in Globals.task_dict.values():
-            if dnn_id == DNN["task"].dnn_id:
-                current_block_id = DNN["task"].current_block
+            del Globals.assembly_dict[key]
+            Globals.assembly_dict_lock.release()
 
-        Globals.task_dict[current_block_id]["task"].update()
+            state_update_object = {
+                "finish_times": finish_times,
+                "convidx": convidx,
+                "dnn_id": taskForwardObj.high_comp_result.dnn_id
+            }
 
-        Globals.task_thread_lock.release()
-        return 'Updated'
+            state_update_comm = OutboundComm(
+                comm_time=taskForwardObj.high_comp_result.tasks[convidx].state_update.start_fin_time[0], comm_type=OutboundCommType.STATE_UPDATE, payload=state_update_object)
 
-    def halt_tasks(self, request):
-        Globals.work_queue.put({"type": "halt"})
-        return 'Halted'
+            add_task_to_queue(state_update_comm)
+
+            for finish_time in state_update_object["finish_times"]:
+                converted_ts = from_ms_since_epoch(
+                    str(finish_time["finish_time"]))
+                partition_id = finish_time["partition_id"]
+                taskForwardObj.high_comp_result.tasks[convidx].partitioned_tasks[
+                    partition_id].actual_finish = converted_ts
+
+            if int(taskForwardObj.convidx) + 1 < len(taskForwardObj.high_comp_result.tasks):
+                next_convidx = str(int(taskForwardObj.convidx) + 1)
+
+                assemble_data = AssembleData(assemble_obj)
+
+                if assemble_data != None:
+                    highCompRes = taskForwardObj.high_comp_result
+                    highCompRes.last_complete_convidx = convidx
+                    highCompRes.tasks[convidx].completed = True
+
+                    partition_data = {}
+                    partition_result = PartitionData({
+                        "data": assemble_data["data"],
+                        "shape": assemble_data["shape"],
+                        "convblockidx": next_convidx,
+                        "N": highCompRes.tasks[next_convidx].N,
+                        "M": highCompRes.tasks[next_convidx].M,
+                        "TaskID": highCompRes.unique_dnn_id
+                    })
+
+                    if isinstance(partition_result, dict):
+                        partition_data = partition_result
+                    else:
+                        Globals.assembly_dict_lock.release()
+                        return
+
+                    for partition_id, task in highCompRes.tasks[next_convidx].partitioned_tasks.items():
+                        tile = {}
+                        for tile_item in partition_data["Tiles"]:
+                            if tile["tile_details"]["Nidx"] == task.N and tile["tile_details"]["Midx"] == task.M:
+                                tile = tile_item
+                                break
+                        base64_data, shape = serialize_numpy(tile["data"])
+                        forward_item = TaskForwarding(highCompResult=highCompRes, convIdx=task.convidx,
+                                                      partitionId=partition_id, uniqueTaskId=task.unique_task_id, nIdx=task.N,
+                                                      mIdx=task.M, topX=tile["tile_details"][
+                                                          "top_x"], topY=tile["tile_details"]["top_y"],
+                                                      botX=tile["tile_details"]["bot_x"], botY=tile["tile_details"]["bot_y"],
+                                                      data=base64_data, shape=shape)
+
+                        comm_item = OutboundComm(
+                            comm_time=task.input_data.start_fin_time[0], comm_type=OutboundCommType.TASK_FORWARD, payload=forward_item)
+
+                        add_task_to_queue(comm_item=comm_item)
+
+                    violated_timestamp = dt(1970, 1, 1, 0, 0, 0)
+                    violated_partition = -1
+                    for partition in highCompRes.tasks[convidx].partitioned_tasks.values():
+                        if partition.actual_finish > partition.estimated_finish and partition.actual_finish > violated_timestamp:
+                            violated_timestamp = partition.actual_finish
+                            violated_partition = partition.partition_block_id
+
+                    if violated_partition != -1:
+                        dag_disrupt_item = {
+                            "dnn_id": highCompRes.dnn_id,
+                            "convidx": convidx,
+                            "partition_id": violated_partition,
+                            "finish_time": int(violated_timestamp.timestamp() * 1000)
+                        }
+                        dagCommItem: OutboundComm = OutboundComm(comm_time=dt.now(
+                        ), comm_type=OutboundCommType.DAG_DISRUPTION, payload=dag_disrupt_item)
+                        add_task_to_queue(dagCommItem)
+                else:
+                    Globals.assembly_dict_lock.release()
+
+        else:
+            Globals.assembly_dict_lock.release()
+
+        return
+
+    def task_allocation_function(self, json_request_body: dict):
+        dnn_task: HighCompResult = HighCompResult()
+        dnn_task.generateFromDict(json_request_body["dnn"])
+        starting_convidx: str = json_request_body["starting_conv"]
+
+        load_data: dict = {}
+
+        load_result = LoadImage({
+            "filename": INITIAL_FILE_PATH,
+            "TaskID": dnn_task.unique_dnn_id
+        })
+
+        if isinstance(load_result, dict):
+            load_data = load_result
+        else:
+            return
+
+        partition_data = {}
+        partition_result = PartitionData({
+            "data": load_data["data"],
+            "shape": load_data["shape"],
+            "convblockidx": starting_convidx,
+            "N": dnn_task.tasks[starting_convidx].N,
+            "M": dnn_task.tasks[starting_convidx].M,
+            "TaskID": dnn_task.unique_dnn_id
+        })
+
+        if isinstance(partition_result, dict):
+            partition_data = partition_result
+        else:
+            return
+
+        for partition_id, task in dnn_task.tasks["starting_convidx"].partitioned_tasks.items():
+            tile = {}
+            for tile_item in partition_data["Tiles"]:
+                if tile["tile_details"]["Nidx"] == task.N and tile["tile_details"]["Midx"] == task.M:
+                    tile = tile_item
+                    break
+            base64_data, shape = serialize_numpy(tile["data"])
+            forward_item = TaskForwarding(highCompResult=dnn_task, convIdx=task.convidx,
+                                          partitionId=partition_id, uniqueTaskId=task.unique_task_id, nIdx=task.N,
+                                          mIdx=task.M, topX=tile["tile_details"]["top_x"], topY=tile["tile_details"]["top_y"],
+                                          botX=tile["tile_details"]["bot_x"], botY=tile["tile_details"]["bot_y"],
+                                          data=base64_data, shape=shape)
+
+            comm_item = OutboundComm(
+                comm_time=task.input_data.start_fin_time[0], comm_type=OutboundCommType.TASK_FORWARD, payload=forward_item)
+
+            add_task_to_queue(comm_item=comm_item)
+
+        return
+
+    def task_forward(self, json_request_body: dict):
+        taskForwardObj: TaskForwarding = TaskForwarding()
+        taskForwardObj.create_task_forwarding_from_dict(json_request_body)
+
+        Globals.dnn_hold_lock.acquire()
+        Globals.dnn_hold_dict[taskForwardObj.unique_task_id] = taskForwardObj
+        Globals.dnn_hold_lock.release()
+
+        work_item = {
+            "start_time": taskForwardObj.high_comp_result.tasks[taskForwardObj.convidx].partitioned_tasks[taskForwardObj.partition_id].estimated_start,
+            "work_item": {
+                "type": "task",
+                "data": deserialize_numpy64(taskForwardObj.data, taskForwardObj.shape),
+                "shape": taskForwardObj.shape,
+                "convblockidx": taskForwardObj.convidx,
+                "core": -1,
+                "tile_details": {
+                    "Nidx": taskForwardObj.nidx,
+                    "Midx": taskForwardObj.midx,
+                    "top_x": taskForwardObj.top_x,
+                    "top_y": taskForwardObj.top_y,
+                    "bot_x": taskForwardObj.bot_x,
+                    "bot_y": taskForwardObj.bot_y
+                },
+                "TaskID": taskForwardObj.unique_task_id
+            }
+        }
+
+        add_task(work_item=work_item)
+
+        return
 
 
-def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):
+def run(server_class=HTTPServer, handler_class=RestInterface, port=REST_PORT):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
