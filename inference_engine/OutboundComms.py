@@ -1,4 +1,5 @@
 import Globals
+from inference_engine.utils.DataProcessing import check_if_dnn_halted, check_if_dnn_pruned
 from model.OutboundComm import OutboundComm
 from datetime import datetime as dt
 from enums.OutboundCommTypes import OutboundCommType
@@ -10,7 +11,7 @@ import requests
 
 def outbound_comm_loop():
     while True:
-        Globals.net_queue_lock.acquire(blocking=True)
+        Globals.work_queue_lock.acquire(blocking=True)
 
         if len(Globals.net_outbound_list) != 0 and Globals.net_outbound_list[0].comm_time <= dt.now():
             comm_item: OutboundComm = Globals.net_outbound_list.pop(0)
@@ -24,17 +25,17 @@ def outbound_comm_loop():
             elif comm_item.comm_type == OutboundCommType.DAG_DISRUPTION:
                 stateUpdate(comm_item=comm_item)
 
-        Globals.net_queue_lock.release()
+        Globals.work_queue_lock.release()
     return
 
 
+# Assumed that lock has been acquired prior to accessing queue
 def add_task_to_queue(comm_item: OutboundComm):
-    Globals.net_queue_lock.acquire(blocking=True)
 
-    Globals.net_outbound_list.append(comm_item)
-    Globals.net_outbound_list.sort(key=lambda x: x.comm_time)
+    if not check_if_dnn_pruned(comm_item.dnn_id) and not check_if_dnn_halted(dnn_id=comm_item.dnn_id, dnn_version=comm_item.version):
+        Globals.net_outbound_list.append(comm_item)
+        Globals.net_outbound_list.sort(key=lambda x: x.comm_time)
 
-    Globals.net_queue_lock.release()
     return
 
 

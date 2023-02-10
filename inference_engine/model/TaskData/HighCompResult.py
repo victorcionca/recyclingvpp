@@ -7,13 +7,14 @@ import datetime
 
 class HighCompResult:
     def __init__(self, uniqueDnnId: int = 0, dnnId: str = "", srcHost: str = "", deadline: datetime.datetime = datetime.datetime.now(), estimatedStart: datetime.datetime = datetime.datetime.now(), estimatedFinish: datetime.datetime = datetime.datetime.now(),
-                 tasks: Dict[str, ResultBlock] = {}, startingConvidx: str = "", lastCompleteConvidx: str = "", uploadData: LinkAct = LinkAct()):
+                 tasks: Dict[str, ResultBlock] = {}, startingConvidx: str = "", lastCompleteConvidx: str = "", uploadData: LinkAct = LinkAct(), version: int = 0):
         self.unique_dnn_id = uniqueDnnId
         self.dnn_id = dnnId
         self.srcHost = srcHost
         self.deadline = deadline
         self.estimatedStart = estimatedStart
         self.estimatedFinish = estimatedFinish
+        self.version = version
         self.tasks = tasks
         self.starting_convidx = startingConvidx
         self.upload_data = uploadData
@@ -24,6 +25,7 @@ class HighCompResult:
         self.dnn_id = result_json["dnn_id"]
         self.srcHost = result_json["srcHost"]
         self.deadline = from_ms_since_epoch(result_json["deadline"])
+        self.version = int(result_json["version"])
 
         self.estimatedStart = from_ms_since_epoch(
             result_json["estimatedStart"])
@@ -48,6 +50,7 @@ class HighCompResult:
     def high_comp_result_to_dict(self) -> dict:
         result = {
             "unique_dnn_id": self.unique_dnn_id,
+            "version": self.version,
             "dnn_id": self.dnn_id,
             "srcHost": self.srcHost,
             "deadline": int((self.deadline.timestamp()) * 1000),
