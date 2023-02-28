@@ -3,9 +3,9 @@ import Constants
 
 def run_IperfServer():
     server = iperf3.Server()
-    server.bind_address = 'localhost'
+    server.bind_address = Constants.CLIENT_ADDRESS
     server.port = Constants.IPERF_PORT
     server.verbose = False
 
-    while True:
-        server.run()
+    # while True:
+    server.run()

@@ -1,4 +1,4 @@
-from . import Globals
+import Globals
 def add_task_to_event_queue(event_item: dict):
     Globals.queue_lock.acquire(blocking=True)
     Globals.event_queue.append(event_item)

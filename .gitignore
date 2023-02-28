@@ -3,3 +3,5 @@
 **/protofiles/
 **/venv/
 .vscode
+*.pickle
+*.tflite

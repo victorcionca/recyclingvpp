@@ -1,12 +1,13 @@
-from datetime import datetime as dt 
-from LinkAct import LinkAct
-from ...utils.DataProcessing import *
+from datetime import datetime as dt
+import LinkAct
+import DataProcessing
+
 
 class Task:
 
     def __init__(self, uniqueTaskId: int = 0, dnnId: str = "", convidx: str = "", previousConv: int = 0,
                  partitionBlockId: int = 0, n: int = 0, m: int = 0, estimatedStart: dt = dt.now(), estimatedFinish: dt = dt.now(), actualFinish: dt = dt.now(),
-                 allocatedHost: str = "", inputData: LinkAct = LinkAct(), taskOutputSizeBytes: int = 0):
+                 allocatedHost: str = "", inputData: LinkAct.LinkAct = LinkAct.LinkAct(), taskOutputSizeBytes: int = 0):
         self.unique_task_id = uniqueTaskId
         self.dnn_id = dnnId
         self.convidx = convidx
@@ -31,15 +32,18 @@ class Task:
         self.completed = bool(task_json["completed"])
         self.N = int(task_json["N"])
         self.M = int(task_json["M"])
-        self.estimated_start = from_ms_since_epoch(task_json["estimated_start"])
-        self.estimated_finish = from_ms_since_epoch(task_json["estimated_finish"])
+        self.estimated_start = DataProcessing.from_ms_since_epoch(
+            task_json["estimated_start"])
+        self.estimated_finish = DataProcessing.from_ms_since_epoch(
+            task_json["estimated_finish"])
         self.allocated_host = task_json["allocated_host"]
 
-        input_data = LinkAct()
+        input_data = LinkAct.LinkAct()
         input_data.generateFromJson(task_json["input_data"])
         self.input_data = input_data
         self.task_output_size_bytes = int(task_json["task_output_size_bytes"])
-        self.actual_finish = from_ms_since_epoch(task_json["actual_finish"])
+        self.actual_finish = DataProcessing.from_ms_since_epoch(
+            task_json["actual_finish"])
         return
 
     def task_to_dict(self) -> dict:

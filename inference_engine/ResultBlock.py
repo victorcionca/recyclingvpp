@@ -1,12 +1,12 @@
-from typing import Dict, Optional, Union
+from typing import Dict
 from datetime import datetime as dt
-from Task import Task
-from LinkAct import LinkAct
-from ...utils.DataProcessing import *
+import Task
+import LinkAct
+import DataProcessing
 
 
 class ResultBlock:
-    def __init__(self, N: int = 0, M: int = 0, partitioned_tasks: Dict[int, Task] = {}, assembly_upload_windows: Dict[int, LinkAct] = {}, state_update: LinkAct = LinkAct(), assembly_host: str = "", completed: bool = False, assembly_fin_time: dt = dt.now(), assembly_start_time: dt = dt.now(), state_update_fin_time: dt = dt.now()):
+    def __init__(self, N: int = 0, M: int = 0, partitioned_tasks: Dict[int, Task.Task] = {}, assembly_upload_windows: Dict[int, LinkAct.LinkAct] = {}, state_update: LinkAct.LinkAct = LinkAct.LinkAct(), assembly_host: str = "", completed: bool = False, assembly_fin_time: dt = dt.now(), assembly_start_time: dt = dt.now(), state_update_fin_time: dt = dt.now()):
         self.partitioned_tasks = partitioned_tasks
         self.assembly_upload_windows = assembly_upload_windows
         self.state_update = state_update
@@ -25,14 +25,14 @@ class ResultBlock:
         self.assembly_host = str(obj["assembly_host"])
         self.completed = bool(obj["completed"])
 
-        self.assembly_fin_time = from_ms_since_epoch(obj["assembly_fin_time"])
-        self.assembly_start_time = from_ms_since_epoch(obj["assembly_start_time"])
-        self.state_update_fin_time = from_ms_since_epoch(obj["state_update_fin_time"])
+        self.assembly_fin_time = DataProcessing.from_ms_since_epoch(obj["assembly_fin_time"])
+        self.assembly_start_time = DataProcessing.from_ms_since_epoch(obj["assembly_start_time"])
+        self.state_update_fin_time = DataProcessing.from_ms_since_epoch(obj["state_update_fin_time"])
 
         partitioned_task_dict = {}
 
         for partition in obj["partitioned_tasks"]:
-            task = Task()
+            task = Task.Task()
             task.generateFromDict(partition["task"])
             partitioned_task_dict[partition["id"]] = task
 
@@ -41,13 +41,13 @@ class ResultBlock:
         assembly_upload_dict = {}
 
         for assembly in obj["assembly_upload_windows"]:
-            link = LinkAct()
+            link = LinkAct.LinkAct()
             link.generateFromJson(assembly["window"])
-            assembly_upload_dict["id"] = link
+            assembly_upload_dict[assembly["id"]] = link
 
         self.assembly_upload_windows = assembly_upload_dict
 
-        state_update_obj = LinkAct()
+        state_update_obj = LinkAct.LinkAct()
         state_update_obj.generateFromJson(obj["state_update"])
         self.state_update = state_update_obj
 

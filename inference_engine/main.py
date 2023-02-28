@@ -1,27 +1,28 @@
 import threading
 import logging
-from inference_engine.OutboundComms import outbound_comm_loop
-from inference_engine.WorkWaitingQueue import work_loop
-from inference_engine.inference_engine import InferenceHandler
-from rest_server import run
-from iperf_server import run_IperfServer
+import OutboundComms
+import WorkWaitingQueue
+import inference_engine
+import rest_server
+import Globals
+import iperf_server
+import json
 import requests
-import sys
-from Constants.Constants import *
-from ResultQueueManager import ResultsQueueLoop
+import Constants
+import ResultQueueManager
 # from grpc_server import run_GRPC_Server
 
 
 def start_REST(logging):
-    ThreadStart(logging, run, "REST")
+    ThreadStart(logging, rest_server.run, "REST")
 
 
 def start_IPERF(logging):
-    ThreadStart(logging, run_IperfServer, "IPERF")
+    ThreadStart(logging, iperf_server.run_IperfServer, "IPERF")
 
 
 def start_ResultsQueueManager(logging):
-    ThreadStart(logging, ResultsQueueLoop, "ResultsQueue")
+    ThreadStart(logging, ResultQueueManager.ResultsQueueLoop, "ResultsQueue")
 
 
 def ThreadStart(logging, function, thread_name):
@@ -35,30 +36,33 @@ def ThreadStart(logging, function, thread_name):
 
 def hello(logging):
     logging.info("Main    : Registering with controller")
-    host_ip = CONTROLLER_HOST_NAME
-    requests.post(
-        f'{host_ip}{CONTROLLER_DEFAULT_ROUTE}{CONTROLLER_REGISTER_DEVICE}')
+    host_ip = Constants.CONTROLLER_HOST_NAME
+    endpoint = f'http://{host_ip}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_REGISTER_DEVICE}'
+    print(f"endpoint: {endpoint}")
+    requests.post(endpoint)
+
 
 
 def start_inference_engine(logging):
-    inference_handler = InferenceHandler()
+    inference_handler = inference_engine.InferenceHandler()
     ThreadStart(logging, inference_handler.run, "Inference Engine")
     return
 
 
 def startOutboundComms(logging):
-    ThreadStart(logging, outbound_comm_loop, "Outbound Comm Loop")
+    ThreadStart(logging, OutboundComms.outbound_comm_loop,
+                "Outbound Comm Loop")
 
 
 def start_WorkWaitingQueue(logging):
-    ThreadStart(logging, work_loop, "Work Waiting Queue")
+    ThreadStart(logging, WorkWaitingQueue.work_loop, "Work Waiting Queue")
 
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    hello(logging)
-    start_REST(logging)
     start_IPERF(logging)
+    start_REST(logging)
+    hello(logging)
     start_ResultsQueueManager(logging)
     start_inference_engine(logging)
     startOutboundComms(logging)
