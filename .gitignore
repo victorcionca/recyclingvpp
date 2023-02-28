@@ -3,3 +3,4 @@
 **/protofiles/
 **/venv/
 .vscode
+result*.json
