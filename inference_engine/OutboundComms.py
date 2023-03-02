@@ -75,6 +75,7 @@ def taskForward(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm
     if isinstance(comm_item.payload, TaskForwarding.TaskForwarding):
         payload: TaskForwarding.TaskForwarding = comm_item.payload
         host = payload.high_comp_result.tasks[payload.convidx].partitioned_tasks[payload.partition_id].allocated_host
+        payload.task_forward_start = dt.now()
         url = f"http://{host}:{Constants.REST_PORT}{Constants.TASK_FORWARD}"
         result_dict = payload.task_forwarding_to_dict()
         json_obj = json.dumps(result_dict)
