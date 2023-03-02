@@ -1,7 +1,7 @@
 from typing import Dict, Union
 from ResultBlock import ResultBlock
 from LinkAct import LinkAct
-from ...utils.DataProcessing import *
+import DataProcessing
 import datetime
 
 
@@ -22,14 +22,14 @@ class HighCompResult:
 
     def generateFromDict(self, result_json: dict):
         self.unique_dnn_id = int(result_json["unique_dnn_id"])
-        self.dnn_id = result_json["dnn_id"]
+        self.dnn_id = result_json["dnnId"]
         self.srcHost = result_json["srcHost"]
-        self.deadline = from_ms_since_epoch(result_json["deadline"])
+        self.deadline = DataProcessing.from_ms_since_epoch(result_json["deadline"])
         self.version = int(result_json["version"])
 
-        self.estimatedStart = from_ms_since_epoch(
+        self.estimatedStart = DataProcessing.from_ms_since_epoch(
             result_json["estimatedStart"])
-        self.estimatedFinish = from_ms_since_epoch(
+        self.estimatedFinish = DataProcessing.from_ms_since_epoch(
             result_json["estimatedFinish"])
         self.starting_convidx = result_json["startingConvidx"]
         self.last_complete_convidx = result_json["lastCompleteConvidx"]
@@ -51,14 +51,14 @@ class HighCompResult:
         result = {
             "unique_dnn_id": self.unique_dnn_id,
             "version": self.version,
-            "dnn_id": self.dnn_id,
+            "dnnId": self.dnn_id,
             "srcHost": self.srcHost,
             "deadline": int((self.deadline.timestamp()) * 1000),
             "estimatedStart": int((self.estimatedStart.timestamp()) * 1000),
             "estimatedFinish": int((self.estimatedFinish.timestamp()) * 1000),
             "tasks": {k: v.result_block_to_dict() for k, v in self.tasks.items()},
-            "starting_convidx": self.starting_convidx,
-            "upload_data": self.upload_data.link_act_to_dict(),
+            "startingConvidx": self.starting_convidx,
+            "uploadData": self.upload_data.link_act_to_dict(),
             "lastCompleteConvidx": self.last_complete_convidx
         }
         return result

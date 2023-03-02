@@ -5,3 +5,6 @@
 .vscode
 result*.json
 .DS_Store
+*.pickle
+*.tflite
+result*.json

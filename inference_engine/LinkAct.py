@@ -1,6 +1,6 @@
 from datetime import datetime as dt
 from typing import Tuple
-from ...utils.DataProcessing import *
+import DataProcessing
 
 
 class LinkAct:
@@ -10,21 +10,21 @@ class LinkAct:
         self.data_size = dataSize
         self.start_fin_time = startFinTime
 
-
     def generateFromJson(self, linkActJson: dict):
-        
-        self.is_meta = bool(linkActJson["is_meta"])
-        self.host_names = (linkActJson["host_names"]["first"], linkActJson["host_names"]["second"])
-        self.data_size = int(linkActJson["data_size"])
-        self.start_fin_time = (from_ms_since_epoch(linkActJson["start_fin_time"]["first"]), from_ms_since_epoch(linkActJson["start_fin_time"]["second"]))
-        return
 
+        self.is_meta = bool(linkActJson["is_meta"])
+        self.host_names = (
+            linkActJson["host_names"]["first"], linkActJson["host_names"]["second"])
+        self.data_size = int(linkActJson["data_size"])
+        self.start_fin_time = (DataProcessing.from_ms_since_epoch(
+            linkActJson["start_fin_time"]["first"]), DataProcessing.from_ms_since_epoch(linkActJson["start_fin_time"]["second"]))
+        return
 
     def link_act_to_dict(self) -> dict:
         link_act_dict = {
             'is_meta': self.is_meta,
             'host_names': {
-                "first": self.host_names[0], 
+                "first": self.host_names[0],
                 "second": self.host_names[1]
             },
             'data_size': self.data_size,

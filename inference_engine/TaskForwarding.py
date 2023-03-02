@@ -1,13 +1,12 @@
-from ..TaskData.HighCompResult import HighCompResult
-from ...inference_engine import deserialize_numpy
-import json
-import base64
+import HighCompResult
+import DataProcessing
+from datetime import datetime as dt
 
 
 class TaskForwarding:
-    def __init__(self, highCompResult: HighCompResult = HighCompResult(), convIdx: str = "",
+    def __init__(self, highCompResult: HighCompResult.HighCompResult = HighCompResult.HighCompResult(), convIdx: str = "",
                  partitionId: int = 0, uniqueTaskId: int = 0, nIdx: int = 0, mIdx: int = 0,
-                 topX: int = 0, topY: int = 0, botX: int = 0, botY: int = 0, data: bytes = bytes(), shape: list = []) -> None:
+                 topX: int = 0, topY: int = 0, botX: int = 0, botY: int = 0, data: bytes = bytes(), shape: list = [], assemblyUploadStart: dt = dt.now(), assemblyUploadFinish: dt = dt.now(), taskForwardStart: dt = dt.now(), taskForwardFinish: dt = dt.now()) -> None:
 
         self.high_comp_result = highCompResult
         self.convidx = convIdx
@@ -21,6 +20,10 @@ class TaskForwarding:
         self.bot_y = botY
         self.data = data
         self.shape = shape
+        self.assembly_upload_start = assemblyUploadStart
+        self.assembly_upload_finish = assemblyUploadFinish
+        self.task_forward_start = taskForwardStart
+        self.task_forward_finish = taskForwardFinish
 
     def create_task_forwarding_from_dict(self, data: dict):
         self.high_comp_result.generateFromDict(data["dnn"])
@@ -33,8 +36,12 @@ class TaskForwarding:
         self.top_y = int(data["top_y"])
         self.bot_x = int(data["bot_x"])
         self.bot_y = int(data["bot_y"])
-        self.shape = json.loads(data["shape"])
-        self.data = base64.b64encode(data["data"].encode('utf-8'))
+        self.shape = data["shape"]
+        self.data = data["data"].encode('utf-8')
+        self.assembly_upload_start = DataProcessing.from_ms_since_epoch(str(data["assembly_upload_start"]))
+        self.assembly_upload_finish = DataProcessing.from_ms_since_epoch(str(data["assembly_upload_finish"]))
+        self.task_forward_start = DataProcessing.from_ms_since_epoch(str(data["task_forward_start"]))
+        self.task_forward_finish = DataProcessing.from_ms_since_epoch(str(data["task_forward_finish"]))
 
     def task_forwarding_to_dict(self) -> dict:
         result = {
@@ -50,5 +57,9 @@ class TaskForwarding:
             "bot_y": self.bot_y,
             "data": (self.data).decode('utf-8'),
             "shape": self.shape,
+            "assembly_upload_start": self.assembly_upload_start.timestamp() * 1000,
+            "assembly_upload_finish": self.assembly_upload_finish.timestamp() * 1000,
+            "task_forward_start": self.task_forward_start.timestamp() * 1000,
+            "task_forward_finish": self.task_forward_finish.timestamp() * 1000
         }
         return result

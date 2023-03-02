@@ -29,7 +29,7 @@ from PIL import Image
 import threading
 
 # TODO - the following must be configured
-model_folder = "../../models/vgg16_trashnet_conv_blocks/with_maxpooling"
+model_folder = "/home/jamiec/Documents/Work/PhD/recyclingvpp/models/vgg16_trashnet_conv_blocks/with_maxpooling"
 model_filename = "vgg16_conv_block_{block_idx}.tflite"
 maxpool_filename = "vgg16_maxpool_{block_idx}.tflite"
 from time import sleep
@@ -251,12 +251,12 @@ class InferenceHandler(threading.Thread):
             interpreter_maxp.invoke()
             # Get the final output
             maxpool_output = interpreter_maxp.get_tensor(maxpool_output_details[0]['index'])
-            output_bytes = maxpool_output.tobytes()
+            output_bytes, output_shape = serialize_numpy(maxpool_output)
             # Build request
             response = dict()
             response["TaskID"] = request["TaskID"]
-            response["data"], _ = serialize_numpy(output_bytes)
-            response["shape"] = list(maxpool_output.shape)
+            response["data"] = output_bytes
+            response["shape"] = output_shape
             response["tile_details"] = {'Nidx': tile['Nidx'], 'Midx': tile['Midx']}
             # Insert request into the results queue
             self.results_queue.put(response)

@@ -2,11 +2,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import logging
 from datetime import datetime as dt
-from Constants.Constants import *
+import Constants
 import datetime
 import Globals
-from experiment_manager.enums.EventType import EventTypes
-from experiment_manager.utils import add_task_to_event_queue
+import EventType
+import utils
 hostName = "localhost"
 
 
@@ -31,9 +31,9 @@ class RestInterface(BaseHTTPRequestHandler):
         try:
             json_request: dict = json.loads(request_body)
 
-            if self.path == ALLOCATE_LOW_TASK:
+            if self.path == Constants.ALLOCATE_LOW_TASK:
                 self.allocate_low_task(json_request=json_request)
-            if self.path == SET_EXPERIMENT_START:
+            if self.path == Constants.SET_EXPERIMENT_START:
                 self.set_experiment_start_time(json_request=json_request)
 
         except json.JSONDecodeError:
@@ -56,10 +56,10 @@ class RestInterface(BaseHTTPRequestHandler):
         else:
             finish_time = from_ms_since_epoch(str(json_request["finish_time"]))
 
-        add_task_to_event_queue(
-            event_item={"event_type": EventTypes.LOW_COMP_FINISH, "time": finish_time})
+        utils.add_task_to_event_queue(
+            event_item={"event_type": EventType.EventTypes.LOW_COMP_FINISH, "time": finish_time})
         return
-    
+
     def set_experiment_start_time(self, json_request: dict):
         start_time: dt = dt.now()
 
@@ -68,18 +68,27 @@ class RestInterface(BaseHTTPRequestHandler):
         else:
             start_time = from_ms_since_epoch(str(json_request["start_time"]))
 
-        if SET_A_OR_B:
-            start_time = start_time + datetime.timedelta(seconds=FRAME_RATE / 2)
-        
-        add_task_to_event_queue(event_item={"event_type": EventTypes.OBJECT_DETECT_START, "time": start_time})
-        add_task_to_event_queue(event_item={"event_type": EventTypes.OBJECT_DETECT_FINISH, "time": start_time + datetime.timedelta(milliseconds=OBJECT_DETECTION_TIME_MS)})
-        for i in range(1, OBJECT_DETECTION_COUNT):
-            delta = datetime.timedelta(seconds=FRAME_RATE) * i
-            add_task_to_event_queue(event_item={"event_type": EventTypes.OBJECT_DETECT_START, "time": start_time + delta})
-            delta = delta + datetime.timedelta(milliseconds=OBJECT_DETECTION_TIME_MS)
-            add_task_to_event_queue(event_item={"event_type": EventTypes.OBJECT_DETECT_FINISH, "time": start_time + delta})
+        if Constants.SET_A_OR_B:
+            start_time = start_time + \
+                datetime.timedelta(seconds=Constants.FRAME_RATE / 2)
 
-        experiment_finish_time = start_time + (datetime.timedelta(seconds=FRAME_RATE) * (OBJECT_DETECTION_COUNT + 1))
+        utils.add_task_to_event_queue(event_item={
+                                      "event_type": EventType.EventTypes.OBJECT_DETECT_START, "time": start_time})
+        utils.add_task_to_event_queue(event_item={"event_type": EventType.EventTypes.OBJECT_DETECT_FINISH,
+                                      "time": start_time + datetime.timedelta(milliseconds=Constants.OBJECT_DETECTION_TIME_MS)})
+        for i in range(1, Constants.OBJECT_DETECTION_COUNT):
+            delta = datetime.timedelta(seconds=Constants.FRAME_RATE) * i
+            utils.add_task_to_event_queue(event_item={
+                                          "event_type": EventType.EventTypes.OBJECT_DETECT_START, "time": start_time + delta})
+            delta = delta + \
+                datetime.timedelta(
+                    milliseconds=Constants.OBJECT_DETECTION_TIME_MS)
+            utils.add_task_to_event_queue(event_item={
+                                          "event_type": EventType.EventTypes.OBJECT_DETECT_FINISH, "time": start_time + delta})
+
+        experiment_finish_time = start_time + \
+            (datetime.timedelta(seconds=Constants.FRAME_RATE)
+             * (Constants.OBJECT_DETECTION_COUNT + 1))
         Globals.EXPERIMENT_FINISH_TIME = experiment_finish_time
         Globals.EXPERIMENT_START = True
         return
@@ -89,7 +98,7 @@ def from_ms_since_epoch(ms: str) -> dt:
     return dt.fromtimestamp(int(ms) / 1000.0)
 
 
-def run(server_class=HTTPServer, handler_class=RestInterface, port=EXPERIMENT_INFERFACE):
+def run_server(server_class=HTTPServer, handler_class=RestInterface, port=Constants.EXPERIMENT_INFERFACE):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)

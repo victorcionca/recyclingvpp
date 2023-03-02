@@ -13,7 +13,7 @@ def work_loop():
                 free_core = core
                 break
 
-        if free_core != -1 and Globals.work_waiting_queue[0]["start_time"] <= dt.now():
+        if len(Globals.work_waiting_queue) != 0 and free_core != -1 and Globals.work_waiting_queue[0]["start_time"] <= dt.now():
             work_item = Globals.work_waiting_queue.pop(0)
             Globals.core_map[free_core] = work_item["work_item"]["TaskID"]
             work_item["work_item"]["core"] = free_core

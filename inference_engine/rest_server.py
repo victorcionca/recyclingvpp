@@ -2,19 +2,17 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import logging
 import queue
-from Constants.Constants import *
+from typing import List
+import Constants
 import Globals
-from inference_engine.inference_engine import LoadImage, PartitionData, serialize_numpy
-from inference_engine.model.AssemblyHoldItem import AssemblyHold
-from inference_engine.utils.DataProcessing import add_item_to_assembly_hold_list, check_if_dnn_halted, check_if_dnn_pruned, fetch_item_from_assembly_hold_list, from_ms_since_epoch
-from model.NetworkCommModels.TaskForwaring import TaskForwarding
-from model.OutboundComm import OutboundComm
-from enums.OutboundCommTypes import OutboundCommType
-from OutboundComms import add_task_to_queue
-from inference_engine.inference_engine import deserialize_numpy64
-from inference_engine.model.TaskData.HighCompResult import HighCompResult
-from inference_engine.inference_engine import AssembleData
-from WorkWaitingQueue import add_task
+import inference_engine
+import DataProcessing
+import TaskForwarding
+import OutboundComm
+import OutboundComms
+import OutboundCommTypes
+import HighCompResult
+import WorkWaitingQueue
 from datetime import datetime as dt
 
 hostName = "localhost"
@@ -27,7 +25,6 @@ class RestInterface(BaseHTTPRequestHandler):
 
     def _set_response(self):
         self.send_response(200)
-        self.send_header('Content-type', 'application/json')
         self.end_headers()
 
     def do_POST(self):
@@ -38,57 +35,55 @@ class RestInterface(BaseHTTPRequestHandler):
         request_body = self.rfile.read(int(self.headers['Content-Length']))
 
         response_json = ""
-
         response_code = 200
+
+        self.send_response(response_code)
+        self.end_headers()
 
         try:
             json_request: dict = json.loads(request_body)
 
-            if self.path == HALT_ENDPOINT:
+            if self.path == Constants.HALT_ENDPOINT:
                 self.halt_task(jsonRequest=json_request)
-            elif self.path == TASK_ALLOCATION:
+            elif self.path == Constants.TASK_ALLOCATION:
                 self.task_allocation_function(json_request_body=json_request)
-            elif self.path == TASK_FORWARD:
+            elif self.path == Constants.TASK_FORWARD:
                 self.task_forward(json_request_body=json_request)
-            elif self.path == TASK_REALLOCATION:
+            elif self.path == Constants.TASK_REALLOCATION:
                 self.task_reallocation(jsonRequest=json_request)
-            elif self.path == TASK_UPDATE:
+            elif self.path == Constants.TASK_UPDATE:
                 self.state_update(json_object=json_request)
+            elif self.path == Constants.TASK_ASSEMBLY:
+                self.task_assembly(json_request_body=json_request)
 
         except json.JSONDecodeError:
             print(f"Received request was not json: {request_str}")
             response_code = 400
             return
 
-        self.send_response(response_code)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-
-        self.wfile.write(bytes(response_json, "utf8"))
-
     def state_update(self, json_object: dict):
         dnn_dict: dict = json_object["dnn"]
         old_version: int = int(json_object["old_version"])
-        dnn: HighCompResult = HighCompResult()
+        dnn: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
         dnn.generateFromDict(dnn_dict)
-        
+
         Globals.work_queue_lock.acquire(blocking=True)
 
         if dnn.dnn_id not in Globals.state_update_map.keys():
             Globals.state_update_map[dnn.dnn_id] = {}
-        
+
         Globals.state_update_map[dnn.dnn_id][old_version] = dnn
 
         Globals.work_queue_lock.release()
         return
 
     # This function assumes that the lock has been acquired beforehand
-    def general_allocate_and_forward_function(self, dnn_task: HighCompResult, data: bytes, shape: list[int], starting_convidx: str):
+    def general_allocate_and_forward_function(self, dnn_task: HighCompResult.HighCompResult, data: bytes, shape: List[int], starting_convidx: str):
         partition_data = {}
-        partition_result = PartitionData({
+        partition_result = inference_engine.PartitionData({
             "data": data,
             "shape": shape,
-            "convblockidx": starting_convidx,
+            "convblockidx": int(starting_convidx),
             "N": dnn_task.tasks[starting_convidx].N,
             "M": dnn_task.tasks[starting_convidx].M,
             "TaskID": dnn_task.unique_dnn_id
@@ -99,31 +94,32 @@ class RestInterface(BaseHTTPRequestHandler):
         else:
             return
 
-        for partition_id, task in dnn_task.tasks["starting_convidx"].partitioned_tasks.items():
+        for partition_id, task in dnn_task.tasks[starting_convidx].partitioned_tasks.items():
             tile = {}
             for tile_item in partition_data["Tiles"]:
-                if tile["tile_details"]["Nidx"] == task.N and tile["tile_details"]["Midx"] == task.M:
+                if tile_item["tile_details"]["Nidx"] == (task.N - 1) and tile_item["tile_details"]["Midx"] == (task.M - 1):
                     tile = tile_item
                     break
-            base64_data, shape = serialize_numpy(tile["data"])
-            forward_item = TaskForwarding(highCompResult=dnn_task, convIdx=task.convidx,
-                                          partitionId=partition_id, uniqueTaskId=task.unique_task_id, nIdx=task.N,
-                                          mIdx=task.M, topX=tile["tile_details"]["top_x"], topY=tile["tile_details"]["top_y"],
-                                          botX=tile["tile_details"]["bot_x"], botY=tile["tile_details"]["bot_y"],
-                                          data=base64_data, shape=shape)
 
-            comm_item = OutboundComm(
-                comm_time=task.input_data.start_fin_time[0], comm_type=OutboundCommType.TASK_FORWARD, payload=forward_item)
+            forward_item = TaskForwarding.TaskForwarding(highCompResult=dnn_task, convIdx=task.convidx,
+                                                         partitionId=partition_id, uniqueTaskId=task.unique_task_id, nIdx=task.N,
+                                                         mIdx=task.M, topX=tile["tile_details"][
+                                                             "top_x"], topY=tile["tile_details"]["top_y"],
+                                                         botX=tile["tile_details"]["bot_x"], botY=tile["tile_details"]["bot_y"],
+                                                         data=tile["data"], shape=tile["shape"])
 
-            add_task_to_queue(comm_item=comm_item)
+            comm_item = OutboundComm.OutboundComm(
+                comm_time=task.input_data.start_fin_time[0], comm_type=OutboundCommTypes.OutboundCommType.TASK_FORWARD, payload=forward_item)
+
+            OutboundComms.add_task_to_queue(comm_item=comm_item)
 
     def task_reallocation(self, jsonRequest: dict):
-        dnn: HighCompResult = HighCompResult()
+        dnn: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
         dnn.generateFromDict(jsonRequest["dnn"])
         startingConvidx: str = jsonRequest["starting_conv"]
 
         Globals.work_queue_lock.acquire(blocking=True)
-        success, data, shape = fetch_item_from_assembly_hold_list(
+        success, data, shape = DataProcessing.fetch_item_from_assembly_hold_list(
             dnn_id=dnn.dnn_id, convidx=startingConvidx)
 
         if success:
@@ -201,9 +197,11 @@ class RestInterface(BaseHTTPRequestHandler):
         Globals.work_queue_lock.release()
         return
 
-    def task_assembly(self, json_request_body: dict):
-        taskForwardObj: TaskForwarding = TaskForwarding()
-        taskForwardObj.create_task_forwarding_from_dict(json_request_body)
+    def task_assembly(self, json_request_body):
+        parsed_json = json.loads(json_request_body)
+        taskForwardObj: TaskForwarding.TaskForwarding = TaskForwarding.TaskForwarding()
+        taskForwardObj.create_task_forwarding_from_dict(parsed_json)
+        taskForwardObj.assembly_upload_finish = dt.now()
         convidx = taskForwardObj.convidx
 
         total_partition_count = len(
@@ -212,7 +210,7 @@ class RestInterface(BaseHTTPRequestHandler):
 
         Globals.work_queue_lock.acquire(blocking=True)
 
-        if not check_if_dnn_pruned(dnn_id=taskForwardObj.high_comp_result.dnn_id) and not check_if_dnn_halted(dnn_id=taskForwardObj.high_comp_result.dnn_id, dnn_version=taskForwardObj.high_comp_result.version):
+        if not DataProcessing.check_if_dnn_pruned(dnn_id=taskForwardObj.high_comp_result.dnn_id) and not DataProcessing.check_if_dnn_halted(dnn_id=taskForwardObj.high_comp_result.dnn_id, dnn_version=taskForwardObj.high_comp_result.version):
             if key not in Globals.assembly_dict.keys():
                 Globals.assembly_dict[key] = {
                     "partition_count": total_partition_count,
@@ -226,27 +224,31 @@ class RestInterface(BaseHTTPRequestHandler):
                 finish_times = []
                 assemble_obj = {
                     "TaskID": taskForwardObj.high_comp_result.unique_dnn_id,
-                    "convblockidx": convidx,
+                    "convblockidx": int(convidx),
                     "Tiles": []
                 }
                 for tile in Globals.assembly_dict[key]["tiles"]:
                     finish_times.append({
                         "partition_id": tile.partition_id,
-                        "finish_time": tile.high_comp_result.tasks[convidx].partitioned_tasks[tile.partition_id].actual_finish.timestamp() * 1000
+                        "finish_time": tile.high_comp_result.tasks[convidx].partitioned_tasks[tile.partition_id].actual_finish.timestamp() * 1000,
+                        "assembly_upload_start": tile.assembly_upload_start.timestamp() * 1000,
+                        "assembly_upload_finish": tile.assembly_upload_finish.timestamp() * 1000,
+                        "task_forward_start": tile.task_forward_start.timestamp() * 1000,
+                        "task_forward_finish": tile.task_forward_finish.timestamp() * 1000
                     })
 
-                    assemble_obj["Tiles"] = {
-                        "data": deserialize_numpy64(tile.data, tile.shape),
+                    assemble_obj["Tiles"].append({
+                        "data": tile.data,
                         "shape": tile.shape,
                         "tile_details": {
-                            "Nidx": tile.nidx,
-                            "Midx": tile.midx,
+                            "Nidx": tile.nidx - 1,
+                            "Midx": tile.midx - 1,
                             "top_x": tile.top_x,
                             "top_y": tile.top_y,
                             "bot_x": tile.bot_x,
                             "bot_y": tile.bot_y
                         }
-                    }
+                    })
 
                 del Globals.assembly_dict[key]
 
@@ -256,35 +258,37 @@ class RestInterface(BaseHTTPRequestHandler):
                     "dnn_id": taskForwardObj.high_comp_result.dnn_id
                 }
 
-                state_update_comm = OutboundComm(
-                    comm_time=taskForwardObj.high_comp_result.tasks[convidx].state_update.start_fin_time[0], comm_type=OutboundCommType.STATE_UPDATE, payload=state_update_object, dnn_id=taskForwardObj.high_comp_result.dnn_id, version=taskForwardObj.high_comp_result.version)
+                state_update_upload_time_fin = taskForwardObj.high_comp_result.tasks[convidx].state_update.start_fin_time[1]
+                state_update_comm = OutboundComm.OutboundComm(
+                    comm_time=taskForwardObj.high_comp_result.tasks[convidx].state_update.start_fin_time[0], comm_type=OutboundCommTypes.OutboundCommType.STATE_UPDATE, payload=state_update_object, dnn_id=taskForwardObj.high_comp_result.dnn_id, version=taskForwardObj.high_comp_result.version)
 
-                add_task_to_queue(state_update_comm)
+                OutboundComms.add_task_to_queue(state_update_comm)
 
                 # Performing STATE UPDATE
                 if taskForwardObj.high_comp_result.dnn_id in Globals.state_update_map.keys():
                     if taskForwardObj.high_comp_result.version in Globals.state_update_map[taskForwardObj.high_comp_result.dnn_id].keys():
-                            taskForwardObj.high_comp_result = Globals.state_update_map[taskForwardObj.high_comp_result.dnn_id][taskForwardObj.high_comp_result.version]
+                        taskForwardObj.high_comp_result = Globals.state_update_map[
+                            taskForwardObj.high_comp_result.dnn_id][taskForwardObj.high_comp_result.version]
 
                 for finish_time in state_update_object["finish_times"]:
-                    converted_ts = from_ms_since_epoch(
+                    converted_ts = DataProcessing.from_ms_since_epoch(
                         str(finish_time["finish_time"]))
                     partition_id = finish_time["partition_id"]
                     taskForwardObj.high_comp_result.tasks[convidx].partitioned_tasks[
                         partition_id].actual_finish = converted_ts
 
-                if int(taskForwardObj.convidx) + 1 < len(taskForwardObj.high_comp_result.tasks):
+                if int(taskForwardObj.convidx) < len(taskForwardObj.high_comp_result.tasks):
                     next_convidx = str(int(taskForwardObj.convidx) + 1)
 
-                    assemble_data = AssembleData(assemble_obj)
+                    assemble_data = inference_engine.AssembleData(assemble_obj)
 
                     if assemble_data != None:
                         highCompRes = taskForwardObj.high_comp_result
                         highCompRes.last_complete_convidx = convidx
                         highCompRes.tasks[convidx].completed = True
 
-                        add_item_to_assembly_hold_list(deadline=highCompRes.deadline, dnn_id=highCompRes.dnn_id,
-                                                    convidx=taskForwardObj.convidx, assembly_data=assemble_data["data"], shape=assemble_data["shape"])
+                        DataProcessing.add_item_to_assembly_hold_list(deadline=highCompRes.deadline, dnn_id=highCompRes.dnn_id,
+                                                                      convidx=taskForwardObj.convidx, assembly_data=assemble_data["data"], shape=assemble_data["shape"])
 
                         self.general_allocate_and_forward_function(
                             dnn_task=highCompRes, data=assemble_data["data"], shape=assemble_data["shape"], starting_convidx=next_convidx)
@@ -303,24 +307,22 @@ class RestInterface(BaseHTTPRequestHandler):
                                 "partition_id": violated_partition,
                                 "finish_time": int(violated_timestamp.timestamp() * 1000)
                             }
-                            dagCommItem: OutboundComm = OutboundComm(comm_time=dt.now(
-                            ), comm_type=OutboundCommType.DAG_DISRUPTION, payload=dag_disrupt_item)
-                            add_task_to_queue(dagCommItem)
+                            dagCommItem: OutboundComm.OutboundComm = OutboundComm.OutboundComm(comm_time=state_update_upload_time_fin, comm_type=OutboundCommTypes.OutboundCommType.DAG_DISRUPTION, payload=dag_disrupt_item)
+                            OutboundComms.add_task_to_queue(dagCommItem)
 
-        
         Globals.work_queue_lock.release()
 
         return
 
     def task_allocation_function(self, json_request_body: dict):
-        dnn_task: HighCompResult = HighCompResult()
+        dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
         dnn_task.generateFromDict(json_request_body["dnn"])
         starting_convidx: str = json_request_body["starting_conv"]
 
         load_data: dict = {}
 
-        load_result = LoadImage({
-            "filename": INITIAL_FILE_PATH,
+        load_result = inference_engine.LoadImage({
+            "filename": Constants.INITIAL_FILE_PATH,
             "TaskID": dnn_task.unique_dnn_id
         })
 
@@ -330,29 +332,30 @@ class RestInterface(BaseHTTPRequestHandler):
             return
 
         Globals.work_queue_lock.acquire(blocking=True)
-        
+
         self.general_allocate_and_forward_function(
             data=load_data["data"], shape=load_data["shape"], dnn_task=dnn_task, starting_convidx=starting_convidx)
-        
+
         Globals.work_queue_lock.release()
         return
 
-    def task_forward(self, json_request_body: dict):
-        taskForwardObj: TaskForwarding = TaskForwarding()
-        taskForwardObj.create_task_forwarding_from_dict(json_request_body)
-
+    def task_forward(self, json_request_body):
+        task_forward_data = json.loads(json_request_body)
+        taskForwardObj: TaskForwarding.TaskForwarding = TaskForwarding.TaskForwarding()
+        taskForwardObj.create_task_forwarding_from_dict(task_forward_data)
+        taskForwardObj.task_forward_finish = dt.now()
         Globals.work_queue_lock.acquire(blocking=True)
 
-        if not check_if_dnn_pruned(dnn_id=taskForwardObj.high_comp_result.dnn_id) and not check_if_dnn_halted(dnn_id=taskForwardObj.high_comp_result.dnn_id, dnn_version=taskForwardObj.high_comp_result.version):
+        if not DataProcessing.check_if_dnn_pruned(dnn_id=taskForwardObj.high_comp_result.dnn_id) and not DataProcessing.check_if_dnn_halted(dnn_id=taskForwardObj.high_comp_result.dnn_id, dnn_version=taskForwardObj.high_comp_result.version):
             Globals.dnn_hold_dict[taskForwardObj.unique_task_id] = taskForwardObj
 
             work_item = {
                 "start_time": taskForwardObj.high_comp_result.tasks[taskForwardObj.convidx].partitioned_tasks[taskForwardObj.partition_id].estimated_start,
                 "work_item": {
                     "type": "task",
-                    "data": deserialize_numpy64(taskForwardObj.data, taskForwardObj.shape),
+                    "data": taskForwardObj.data,
                     "shape": taskForwardObj.shape,
-                    "convblockidx": taskForwardObj.convidx,
+                    "convblockidx": int(taskForwardObj.convidx),
                     "core": -1,
                     "tile_details": {
                         "Nidx": taskForwardObj.nidx,
@@ -366,13 +369,13 @@ class RestInterface(BaseHTTPRequestHandler):
                 }
             }
 
-            add_task(work_item=work_item)
-        
+            WorkWaitingQueue.add_task(work_item=work_item)
+
         Globals.work_queue_lock.release()
         return
 
 
-def run(server_class=HTTPServer, handler_class=RestInterface, port=REST_PORT):
+def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)

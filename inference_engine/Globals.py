@@ -2,10 +2,10 @@ import threading
 import queue
 from multiprocessing import Queue
 from typing import Dict, List
-from model.OutboundComm import OutboundComm
-from model.NetworkCommModels.TaskForwaring import TaskForwarding
-from model.AssemblyHoldItem import AssemblyHold
-from model.TaskData.HighCompResult import HighCompResult
+import OutboundComm
+import TaskForwarding
+import AssemblyHoldItem
+import HighCompResult
 
 work_queue_lock = threading.Lock()
 
@@ -20,7 +20,7 @@ work_queue = queue.Queue()
 # Value is a dict with two keys
 # "partition_count": int
 # "tile": a list of TaskForwarding objects
-assembly_dict: Dict[str, dict] = {}
+assembly_dict: Dict[str, Dict] = {}
 
 # StateUpdate Map
 # this is a dictionary that
@@ -32,17 +32,17 @@ assembly_dict: Dict[str, dict] = {}
 #     }  
 # }
 
-state_update_map: Dict[str, Dict[int, HighCompResult]] = {}
+state_update_map: Dict[str, Dict[int, HighCompResult.HighCompResult]] = {}
 
 # Results queue
 results_queue = Queue()
 
 # Outbound net-communications queue
 # Two types of comm, state update and outbound comms
-net_outbound_list: List[OutboundComm] = []
+net_outbound_list: List[OutboundComm.OutboundComm] = []
 
 # This holds dnns inbetween the task being sent to processing and the result being generated
-dnn_hold_dict: Dict[int, TaskForwarding] = {}
+dnn_hold_dict: Dict[int, TaskForwarding.TaskForwarding] = {}
 
 # This holds a queue of tasks to be processed,
 # ensures that tasks are only added to the work
@@ -50,17 +50,19 @@ dnn_hold_dict: Dict[int, TaskForwarding] = {}
 work_waiting_queue = []
 
 # This list holds the version items for a DNN to ignore
-halt_list: dict[str, List[int]] = {}
+halt_list: Dict[str, List[int]] = {}
 
 # This list holds assembled data in case it is needed for task reallocation
-assembly_hold_list: List[AssemblyHold] = list()
+assembly_hold_list: List[AssemblyHoldItem.AssemblyHold] = list()
 
 # Holds a list of DNN ids that have been pruned from the network
 prune_list: List[str] = []
 
+host_name = ""
+
 # Used to hold our map of cores in use
 # key is the core, value is the task using it
-core_map: dict[int, int] = {
+core_map: Dict[int, int] = {
     0: -1,
     1: -1,
     2: -1,
