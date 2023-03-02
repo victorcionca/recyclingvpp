@@ -4,3 +4,4 @@
 **/venv/
 .vscode
 result*.json
+.DS_Store
