@@ -44,7 +44,7 @@ def hello(logging):
 
 
 def start_inference_engine(logging):
-    inference_handler = inference_engine.InferenceHandler()
+    inference_handler = inference_engine.InferenceHandler() # type: ignore
     ThreadStart(logging, inference_handler.run, "Inference Engine")
     return
 

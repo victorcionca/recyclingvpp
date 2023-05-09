@@ -26,6 +26,8 @@ def run_loop():
                     deadline=deadline, dnn_id=dnn_id_counter)
                 dnn_id_counter = dnn_id_counter + 1
             elif current_item["event_type"] == EventType.EventTypes.LOW_COMP_FINISH:
+                print(f'{current_item["time"].strftime("%Y-%m-%d %H:%M:%S:%f")} LOW EXPECTED FIN')
+                print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S:%f")} NOW')
                 generate_high_comp_request(deadline=deadline, dnn_id=dnn_id_counter)
                 dnn_id_counter = dnn_id_counter + 1
 

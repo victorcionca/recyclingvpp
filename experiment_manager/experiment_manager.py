@@ -56,6 +56,8 @@ class RestInterface(BaseHTTPRequestHandler):
         else:
             finish_time = from_ms_since_epoch(str(json_request["finish_time"]))
 
+        print(f'{finish_time.strftime("%Y-%m-%d %H:%M:%S:%f")} LOW COMP ALLO FIN')
+
         utils.add_task_to_event_queue(
             event_item={"event_type": EventType.EventTypes.LOW_COMP_FINISH, "time": finish_time})
         return

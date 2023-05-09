@@ -1,13 +1,13 @@
 import os
 import json
-from typing import List
+from typing import Dict, List
 import ResultsFormatter
 import datetime
 
 directory = "/Users/jamiecotter/Documents/Work/PhD/recyclingvpp/ResultParser/result_logs/"
 
 
-def parse_exp_events(experiment_log_events: List):
+def parse_exp_events(experiment_log_events: List) -> Dict:
 
     dnn_values = {}
     for event in experiment_log_events:
@@ -41,9 +41,6 @@ def parse_exp_events(experiment_log_events: List):
                     temp_input_comm_window = task["input_data"]["actual_start_fin_time"]["second"] - \
                         task["input_data"]["actual_start_fin_time"]["first"]
 
-                    temp_input_comm_window_fin_str = str(task["input_data"]["actual_start_fin_time"]["second"])
-                    temp_input_comm_window_strt_str = str(task["input_data"]["actual_start_fin_time"]["first"])
-
                     for assembly_window in result_block["assembly_upload_windows"]:
                         if assembly_window["id"] == partition_id:
                             if assembly_window["window"]["actual_start_fin_time"]["second"] - temp_input_upload_start > largest_comm_window:
@@ -56,26 +53,59 @@ def parse_exp_events(experiment_log_events: List):
 
                 dnn_values[dnn_id]["communication_time"] = dnn_values[dnn_id]["communication_time"] + comm_time
                 dnn_values[dnn_id]["computation_time"] = dnn_values[dnn_id]["computation_time"] + comp_time
+
+    end_to_end_time_list = []
+    comp_time_list = []
+    comm_time_list =[]
+
+    for key, value in dnn_values.items():
+        end_to_end_time_list.append(value["finish_time"] - value["start_time"])
+        comp_time_list.append(value["computation_time"])
+        comm_time_list.append(value["communication_time"])
     
-            copy_dict = dnn_values[dnn_id].copy()
-            for key, value in dnn_values[dnn_id].items():
-                copy_dict[f"{key}_hr"] = str(value)
-            dnn_values[dnn_id] = copy_dict
-    return
+    av_end_to_end = datetime.timedelta()
+    av_comp = datetime.timedelta()
+    av_comm = datetime.timedelta()
+
+    return {
+        "average_comm_time": sum(comm_time_list, datetime.timedelta(0)) / len(comm_time_list),
+        "average_comp_time": sum(comp_time_list, datetime.timedelta(0)) / len(comp_time_list),
+        "average_end_to_end": sum(end_to_end_time_list, datetime.timedelta(0)) / len(end_to_end_time_list)
+    }
 
 
 def main():
     file_names = os.listdir(directory)
     file_names = [name for name in file_names if name != ".DS_Store"]
-    result_dict_list = []
+    result_dict_list = {}
 
     for file_name in file_names:
         with open(f"{directory}{file_name}", "r") as f:
-            result_dict_list.append(ResultsFormatter.result_format(
-                json_array=json.loads(f.read()), human_format=False))
+            result_dict_list[file_name] = ResultsFormatter.result_format(
+                json_array=json.loads(f.read()), human_format=False)
 
-    for result in result_dict_list:
-        parse_exp_events(experiment_log_events=result)
+    value_dict = {}
+    for key, result in result_dict_list.items():
+        value_dict[key] = parse_exp_events(experiment_log_events=result)
+
+    end_to_end_time_list = []
+    comp_time_list = []
+    comm_time_list =[]
+
+    for key, value in value_dict.items():
+        end_to_end_time_list.append(value["average_end_to_end"])
+        comp_time_list.append(value["average_comp_time"])
+        comm_time_list.append(value["average_comm_time"])
+    
+    average = {
+        "average_comm_time": sum(comm_time_list, datetime.timedelta(0)) / len(comm_time_list),
+        "average_comp_time": sum(comp_time_list, datetime.timedelta(0)) / len(comp_time_list),
+        "average_end_to_end": sum(end_to_end_time_list, datetime.timedelta(0)) / len(end_to_end_time_list)
+    }
+
+    final_average = average.copy()
+    for key, value in average.items():
+        final_average[f"{key}_hr"] = str(value)
 
     return
 

@@ -1,21 +1,21 @@
 import Globals
-import Constants
-import requests
-import inference_engine
 import DataProcessing
 import TaskForwarding
 from datetime import datetime as dt
-import OutboundComm
-import OutboundCommTypes
-import OutboundComms
+import inference_engine
+import rest_server
+import pickle
+from typing import Dict, List
 
+CONV_LIMIT = 5
+assembly_dict: Dict[str, List[TaskForwarding.TaskForwarding]] = {}
 
 def ResultsQueueLoop():
     while True:
         result_obj = Globals.results_queue.get(block=True)
         finish_time = dt.now()
         data: bytearray = result_obj["data"]
-        task_id: int = result_obj["TaskID"]
+        task_id: str = result_obj["TaskID"]
         tile_details: dict = result_obj["tile_details"]
 
         Globals.work_queue_lock.acquire(blocking=True)
@@ -24,16 +24,12 @@ def ResultsQueueLoop():
             taskForwardItem: TaskForwarding.TaskForwarding = Globals.dnn_hold_dict[task_id]
             del Globals.dnn_hold_dict[task_id]
 
-            if not DataProcessing.check_if_dnn_pruned(taskForwardItem.high_comp_result.dnn_id) and not DataProcessing.check_if_dnn_halted(dnn_id=taskForwardItem.high_comp_result.dnn_id, dnn_version=taskForwardItem.high_comp_result.version):
-                taskForwardItem.high_comp_result.tasks[taskForwardItem.convidx]\
-                    .partitioned_tasks[taskForwardItem.partition_id].actual_finish = finish_time
-
+            if not DataProcessing.check_if_dnn_halted(taskForwardItem.high_comp_result.dnn_id, taskForwardItem.high_comp_result.version):
                 taskForwardItem.data = data
                 taskForwardItem.shape = result_obj["shape"]
                 taskForwardItem.nidx = tile_details["Nidx"]
                 taskForwardItem.midx = tile_details["Midx"]
-                convidx = taskForwardItem.convidx
-                comm_time = taskForwardItem.high_comp_result.tasks[taskForwardItem.convidx].assembly_upload_windows[taskForwardItem.partition_id].start_fin_time[0]
+                convidx = taskForwardItem.conv_idx[0]
 
                 core_key= -1
 
@@ -42,11 +38,39 @@ def ResultsQueueLoop():
                         core_key = core
                 
                 Globals.core_map[core_key] = -1
+                key = f"{taskForwardItem.high_comp_result.dnn_id}_{convidx}"
+                if key not in assembly_dict:
+                    assembly_dict[key] = []
+                
+                assembly_dict[key].append(taskForwardItem)
+                if len(assembly_dict[key]) == taskForwardItem.high_comp_result.n * taskForwardItem.high_comp_result.m:
+                    assemble_obj = {
+                    "TaskID": f"{taskForwardItem.high_comp_result.dnn_id}_{convidx}",
+                    "convblockidx": int(convidx), # type: ignore
+                    "Tiles": []
+                    }
+                    
+                    for taskForwardObj in assembly_dict[key]:
+                        assemble_obj["Tiles"].append({
+                        "data": taskForwardObj.data,
+                        "shape": taskForwardObj.shape,
+                        "tile_details": {
+                            "Nidx": taskForwardObj.nidx - 1,
+                            "Midx": taskForwardObj.midx - 1,
+                        }
+                    })
+                    
+                    del assembly_dict[key]
 
-                outboundComm: OutboundComm.OutboundComm = OutboundComm.OutboundComm(
-                    comm_time=comm_time, comm_type=OutboundCommTypes.OutboundCommType.TASK_ASSEMBLY, payload=taskForwardItem, dnn_id=taskForwardItem.high_comp_result.dnn_id, version=taskForwardItem.high_comp_result.version)
+                    if convidx < CONV_LIMIT: # type: ignore
+                        next_convidx = str(int(convidx) + 1) # type: ignore
+                        
+                        with open("tiles_for_assembly.pkl", "wb") as f:
+                            pickle.dump(assemble_obj, f)
+                        assemble_data = inference_engine.AssembleData(assemble_obj) # type: ignore
+                        highCompRes = taskForwardItem.high_comp_result
+                        rest_server.partition_and_process(dnn_task=highCompRes, starting_convidx=next_convidx, input_data=assemble_data["data"], input_shape=assemble_data["shape"])
 
-                OutboundComms.add_task_to_queue(outboundComm)
 
         Globals.work_queue_lock.release()
     return

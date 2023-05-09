@@ -5,8 +5,7 @@ import experiment_manager
 
 
 def start_REST(logging):
-    ThreadStart(logging, experiment_manager.run_server, "REST")
- # type: ignore
+    ThreadStart(logging, experiment_manager.run_server, "REST") # type: ignore # type: ignore
 
 def start_experiment_loop(logging):
     ThreadStart(logging, experiment_loop.run_loop, "Experiment Loop")

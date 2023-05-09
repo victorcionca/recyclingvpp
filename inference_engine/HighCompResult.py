@@ -1,64 +1,46 @@
 from typing import Dict, Union
-from ResultBlock import ResultBlock
 from LinkAct import LinkAct
 import DataProcessing
 import datetime
 
 
 class HighCompResult:
-    def __init__(self, uniqueDnnId: int = 0, dnnId: str = "", srcHost: str = "", deadline: datetime.datetime = datetime.datetime.now(), estimatedStart: datetime.datetime = datetime.datetime.now(), estimatedFinish: datetime.datetime = datetime.datetime.now(),
-                 tasks: Dict[str, ResultBlock] = {}, startingConvidx: str = "", lastCompleteConvidx: str = "", uploadData: LinkAct = LinkAct(), version: int = 0):
-        self.unique_dnn_id = uniqueDnnId
-        self.dnn_id = dnnId
-        self.srcHost = srcHost
-        self.deadline = deadline
-        self.estimatedStart = estimatedStart
-        self.estimatedFinish = estimatedFinish
+
+    def __init__(self, dnn_id: str = "", allocated_host: str = "", estimated_start: datetime.datetime = datetime.datetime.now(), estimated_finish: datetime.datetime = datetime.datetime.now(), n: int = 0, m: int = 0, upload_data: LinkAct = LinkAct(), version: int = 0):
+        self.dnn_id = dnn_id
+        self.allocated_host = allocated_host
+        self.estimated_finish = estimated_finish
+        self.estimated_start = estimated_start
+        self.n = n
+        self.m = m
+        self.upload_data = upload_data
         self.version = version
-        self.tasks = tasks
-        self.starting_convidx = startingConvidx
-        self.upload_data = uploadData
-        self.last_complete_convidx = lastCompleteConvidx
 
     def generateFromDict(self, result_json: dict):
-        self.unique_dnn_id = int(result_json["unique_dnn_id"])
-        self.dnn_id = result_json["dnnId"]
-        self.srcHost = result_json["srcHost"]
-        self.deadline = DataProcessing.from_ms_since_epoch(result_json["deadline"])
+        self.allocated_host = result_json["allocated_host"]
+        self.dnn_id = result_json["dnn_id"]
+        if self.allocated_host != "self":
+            up_data = LinkAct()
+            up_data.generateFromJson(result_json["upload_data"])
+            self.upload_data = up_data
+        self.estimated_start = DataProcessing.from_ms_since_epoch(
+            result_json["start_time"])
+        self.estimated_finish = DataProcessing.from_ms_since_epoch(
+            result_json["finish_time"])
+        self.n = int(result_json["N"])
+        self.m = int(result_json["M"])
         self.version = int(result_json["version"])
-
-        self.estimatedStart = DataProcessing.from_ms_since_epoch(
-            result_json["estimatedStart"])
-        self.estimatedFinish = DataProcessing.from_ms_since_epoch(
-            result_json["estimatedFinish"])
-        self.starting_convidx = result_json["startingConvidx"]
-        self.last_complete_convidx = result_json["lastCompleteConvidx"]
-
-        up_data = LinkAct()
-        up_data.generateFromJson(result_json["uploadData"])
-        self.upload_data = up_data
-
-        task_list = {}
-        for convidx, convblock in result_json["tasks"].items():
-            res_block = ResultBlock()
-            res_block.generateFromDict(convblock)
-            task_list[convidx] = res_block
-        self.tasks = task_list
-
         return
 
     def high_comp_result_to_dict(self) -> dict:
         result = {
-            "unique_dnn_id": self.unique_dnn_id,
+            "dnn_id": self.dnn_id,
+            "N": self.n,
+            "M": self.m,
+            "estimated_start": int((self.estimated_start.timestamp()) * 1000),
+            "estimated_finish": int((self.estimated_finish.timestamp()) * 1000),
             "version": self.version,
-            "dnnId": self.dnn_id,
-            "srcHost": self.srcHost,
-            "deadline": int((self.deadline.timestamp()) * 1000),
-            "estimatedStart": int((self.estimatedStart.timestamp()) * 1000),
-            "estimatedFinish": int((self.estimatedFinish.timestamp()) * 1000),
-            "tasks": {k: v.result_block_to_dict() for k, v in self.tasks.items()},
-            "startingConvidx": self.starting_convidx,
-            "uploadData": self.upload_data.link_act_to_dict(),
-            "lastCompleteConvidx": self.last_complete_convidx
+            "allocated_host": self.allocated_host,
+            "upload_data": self.upload_data.link_act_to_dict()
         }
         return result
