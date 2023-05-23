@@ -40,7 +40,7 @@ def grid(width, height, N, M, i, j):
 
     return t
 
-def traversal(next_tile, Wl, Hl, Fl, Sl, i, j):
+def traversal(next_tile, layer_type, Wl, Hl, Fl, Sl, i, j):
     """
     Computes the input shape of the previous layer tile based on the current tile,
     and the characteristics of the previous layer.
@@ -50,11 +50,18 @@ def traversal(next_tile, Wl, Hl, Fl, Sl, i, j):
     t.Nidx = i
     t.Midx = j
 
-    t.top_left_x = int(max(0, Sl[0]*next_tile.top_left_x-np.floor(Fl/2)))
-    t.top_left_y = int(max(0, Sl[1]*next_tile.top_left_y-np.floor(Fl/2)))
+    if layer_type == 'conv':
+        t.top_left_x = int(max(0, Sl[0]*next_tile.top_left_x-np.floor(Fl/2)))
+        t.top_left_y = int(max(0, Sl[1]*next_tile.top_left_y-np.floor(Fl/2)))
 
-    t.bottom_right_x = int(min(Sl[0]*next_tile.bottom_right_x+np.floor(Fl/2), Wl-1))
-    t.bottom_right_y = int(min(Sl[1]*next_tile.bottom_right_y+np.floor(Fl/2), Hl-1))
+        t.bottom_right_x = int(min(Sl[0]*next_tile.bottom_right_x+np.floor(Fl/2), Wl-1))
+        t.bottom_right_y = int(min(Sl[1]*next_tile.bottom_right_y+np.floor(Fl/2), Hl-1))
+    elif layer_type == 'maxpool':
+        t.top_left_x = int(Sl[0]*next_tile.top_left_x)
+        t.top_left_y = int(Sl[1]*next_tile.top_left_y)
+
+        t.bottom_right_x = int(min(Sl[0]*next_tile.bottom_right_x+Sl[0]-1, Wl-1))
+        t.bottom_right_y = int(min(Sl[1]*next_tile.bottom_right_y+Sl[1]-1, Hl-1))
 
     return t
 
@@ -72,15 +79,23 @@ def FTP(model_metadata, N, M):
   H_L = model_metadata[-1]['output_shape'][1]
   tiles = [[[None for j in range(M)] for i in range(N)] for l in range(num_layers+1)]
   for i in range(N):
-    for j in range(M):
-      tiles[num_layers][i][j] = grid(W_L, H_L, N, M, i, j)
-      # Perform backward traversal to determine the tile config for previous layers
-      for l in range(num_layers, 0, -1):
-        W_l = model_metadata[l-1]['output_shape'][2]
-        H_l = model_metadata[l-1]['output_shape'][1]
-        S_l = model_metadata[l-1]['strides'] # Stride of conv filter
-        F_l = model_metadata[l-1]['kernel_shape'][0] # Size of conv filter
-        tiles[l-1][i][j] = traversal(tiles[l][i][j], W_l, H_l, F_l, S_l, i, j)
+      for j in range(M):
+          tiles[num_layers][i][j] = grid(W_L, H_L, N, M, i, j)
+          # Perform backward traversal to determine the tile config for previous layers
+          for l in range(num_layers, 0, -1):
+              if l-2 >= 0:
+                  W_l = model_metadata[l-2]['output_shape'][2]
+                  H_l = model_metadata[l-2]['output_shape'][1]
+              else:
+                  W_l = model_metadata[l-1]['input_shape'][2]
+                  H_l = model_metadata[l-1]['input_shape'][1]
+              S_l = model_metadata[l-1]['strides'] # Stride of conv filter
+              layer_type = model_metadata[l-1]['layer_type']
+              F_l = None
+              if layer_type == 'conv':
+                  F_l = model_metadata[l-1]['kernel_shape'][0] # Size of conv filter
+              tiles[l-1][i][j] = traversal(tiles[l][i][j], layer_type,
+                                            W_l, H_l, F_l, S_l, i, j)
   return tiles
 
 def get_first_partition(input_data, model_metadata, N, M):
