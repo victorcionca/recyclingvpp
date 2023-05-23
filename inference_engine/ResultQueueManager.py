@@ -2,6 +2,9 @@ import Globals
 import DataProcessing
 import TaskForwarding
 from datetime import datetime as dt
+import OutboundComms
+import OutboundComm
+import OutboundCommTypes
 import inference_engine
 import rest_server
 import pickle
@@ -55,8 +58,8 @@ def ResultsQueueLoop():
                         "data": taskForwardObj.data,
                         "shape": taskForwardObj.shape,
                         "tile_details": {
-                            "Nidx": taskForwardObj.nidx - 1,
-                            "Midx": taskForwardObj.midx - 1,
+                            "Nidx": taskForwardObj.nidx,
+                            "Midx": taskForwardObj.midx,
                         }
                     })
                     
@@ -67,9 +70,18 @@ def ResultsQueueLoop():
                         
                         with open("tiles_for_assembly.pkl", "wb") as f:
                             pickle.dump(assemble_obj, f)
+                        print("Beginning Assembly")
                         assemble_data = inference_engine.AssembleData(assemble_obj) # type: ignore
                         highCompRes = taskForwardItem.high_comp_result
                         rest_server.partition_and_process(dnn_task=highCompRes, starting_convidx=next_convidx, input_data=assemble_data["data"], input_shape=assemble_data["shape"])
+                    else:
+                        payload = {
+                            "dnn_id": taskForwardItem.high_comp_result.dnn_id,
+                            "finish_time": int(dt.now().timestamp() * 1000)
+                        }
+
+                        state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(), comm_type=OutboundCommTypes.OutboundCommType.STATE_UPDATE, payload=payload, dnn_id=taskForwardItem.high_comp_result.dnn_id, version=taskForwardItem.high_comp_result.version)
+                        OutboundComms.add_task_to_queue(state_update_comm)
 
 
         Globals.work_queue_lock.release()

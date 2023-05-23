@@ -3,12 +3,14 @@ import Globals
 import datetime
 import EventType
 import random
+import datetime
 import requests
 
 
 def run_loop():
     deadline = datetime.datetime.now()
     dnn_id_counter = 0
+    current_trace_item = -2
     # NEED TO BLOCK QUEUE
     while not Globals.EXPERIMENT_START:
         continue
@@ -22,14 +24,17 @@ def run_loop():
                 deadline = current_item["time"] + \
                     datetime.timedelta(seconds=FRAME_RATE)
             elif current_item["event_type"] == EventType.EventTypes.OBJECT_DETECT_FINISH:
-                generate_low_comp_request(
-                    deadline=deadline, dnn_id=dnn_id_counter)
-                dnn_id_counter = dnn_id_counter + 1
+                current_trace_item = Globals.trace_list.pop(0)
+                if current_trace_item != -1:
+                    generate_low_comp_request(
+                        deadline=deadline, dnn_id=dnn_id_counter)
+                    dnn_id_counter = dnn_id_counter + 1
             elif current_item["event_type"] == EventType.EventTypes.LOW_COMP_FINISH:
                 print(f'{current_item["time"].strftime("%Y-%m-%d %H:%M:%S:%f")} LOW EXPECTED FIN')
                 print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S:%f")} NOW')
-                generate_high_comp_request(deadline=deadline, dnn_id=dnn_id_counter)
-                dnn_id_counter = dnn_id_counter + 1
+                if(current_trace_item > 0):
+                    generate_high_comp_request(deadline=deadline, dnn_id=dnn_id_counter, task_count = current_trace_item)
+                    dnn_id_counter = dnn_id_counter + 1
 
         Globals.queue_lock.release()
     print("Done")
@@ -42,7 +47,7 @@ def generate_low_comp_request(deadline: datetime.datetime, dnn_id: int):
 
         data = {
             "dnn_id": str(dnn_id),
-            "deadline": int(deadline.timestamp() * 1000)
+            "deadline": int(deadline.timestamp() * 1000),
         }
 
         headers = {
@@ -54,13 +59,14 @@ def generate_low_comp_request(deadline: datetime.datetime, dnn_id: int):
     return
 
 
-def generate_high_comp_request(deadline: datetime.datetime, dnn_id: int):
+def generate_high_comp_request(deadline: datetime.datetime, dnn_id: int, task_count: int):
     random_value = random.random()
     if random_value < P2:
         
         data = {
             "dnn_id": str(dnn_id),
-            "deadline": int(deadline.timestamp() * 1000)
+            "deadline": int(deadline.timestamp() * 1000),
+            "task_count": task_count
         }
 
         headers = {

@@ -70,15 +70,11 @@ class RestInterface(BaseHTTPRequestHandler):
         else:
             start_time = from_ms_since_epoch(str(json_request["start_time"]))
 
-        if Constants.SET_A_OR_B:
+        if Globals.SET_A_OR_B:
             start_time = start_time + \
                 datetime.timedelta(seconds=Constants.FRAME_RATE / 2)
 
-        utils.add_task_to_event_queue(event_item={
-                                      "event_type": EventType.EventTypes.OBJECT_DETECT_START, "time": start_time})
-        utils.add_task_to_event_queue(event_item={"event_type": EventType.EventTypes.OBJECT_DETECT_FINISH,
-                                      "time": start_time + datetime.timedelta(milliseconds=Constants.OBJECT_DETECTION_TIME_MS)})
-        for i in range(1, Constants.OBJECT_DETECTION_COUNT):
+        for i in range(0, len(Globals.trace_list)):
             delta = datetime.timedelta(seconds=Constants.FRAME_RATE) * i
             utils.add_task_to_event_queue(event_item={
                                           "event_type": EventType.EventTypes.OBJECT_DETECT_START, "time": start_time + delta})

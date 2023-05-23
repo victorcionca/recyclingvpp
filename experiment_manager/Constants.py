@@ -29,13 +29,6 @@ P2_HIGH = .7
 P1 = 1
 P2 = 1
 
-# This value determines whether or 
-# not the start time set by the server
-# is offset by two seconds (well really
-# the event window / 2) in order to 
-# offset the network load # 
-SET_A_OR_B = False
-
 
 CONTROLLER_DEFAULT_ROUTE = "/controller"
 CONTROLLER_HOST_NAME = "com-c132-m34579"

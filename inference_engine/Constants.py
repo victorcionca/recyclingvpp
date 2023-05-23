@@ -40,5 +40,5 @@ CONTROLLER_STATE_UPDATE = f"{CONTROLLER_DEFAULT_ROUTE}/state_update"
 CONTROLLER_LOW_COMP_ALLOCATION = f"{CONTROLLER_DEFAULT_ROUTE}/low_offload_request"
 CONTROLLER_HIGH_COMP_ALLOCATION = f"{CONTROLLER_DEFAULT_ROUTE}/high_offload_request"
 
-INITIAL_FILE_PATH = "/home/jamiec/Documents/Work/PhD/recyclingvpp/inference_engine/metal110.jpg"
+INITIAL_FILE_PATH = "/home/pi/recyclingvpp/inference_engine/metal110.jpg"
 CLIENT_ADDRESS = "192.168.0.14"

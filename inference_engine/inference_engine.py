@@ -29,7 +29,7 @@ from PIL import Image
 import threading
 
 # TODO - the following must be configured
-model_folder = "/home/jamiec/Documents/Work/PhD/recyclingvpp/models/vgg16_trashnet_conv_blocks/with_maxpooling"
+model_folder = "/home/pi/recyclingvpp/models/vgg16_trashnet_conv_blocks/with_maxpooling"
 model_filename = "vgg16_conv_block_{block_idx}.tflite"
 maxpool_filename = "vgg16_maxpool_{block_idx}.tflite"
 from time import sleep
@@ -187,6 +187,7 @@ class InferenceHandler(threading.Thread):
             if f not in request:
                 # TODO signal error
                 return None
+        print(f"processing task on core: {request['core']}, TaskID: {request['TaskID']}")
         # Fork a new process
         childpid = os.fork()
         if not childpid:

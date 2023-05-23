@@ -1,11 +1,17 @@
+from typing import List
 import threading
 import logging
 import experiment_loop
 import experiment_manager
+import sys
+import json
+import TraceParser
+import Globals
 
 
 def start_REST(logging):
     ThreadStart(logging, experiment_manager.run_server, "REST") # type: ignore # type: ignore
+
 
 def start_experiment_loop(logging):
     ThreadStart(logging, experiment_loop.run_loop, "Experiment Loop")
@@ -28,4 +34,11 @@ def main():
 
 
 if __name__ == "__main__":
+    test_mode = len(sys.argv) < 2
+    device_task = int(sys.argv[1]) if not test_mode else 0
+    Globals.SET_A_OR_B = bool(sys.argv[2]) if not test_mode else False
+    trace_file_path = "/home/pi/recyclingvpp/experiment_manager/test_trace_file.json" if test_mode else "trace_file.json"
+    trace_file = open(trace_file_path, "r")
+    trace_data = json.load(trace_file)
+    Globals.trace_list = TraceParser.trace_parser(trace_data, device_task)
     main()
