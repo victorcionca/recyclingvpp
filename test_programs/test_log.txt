@@ -1,0 +1,6 @@
+1. 426 desyncs
+2. 354 desyncs
+3. 0 desyncs
+4. 151 desyncs
+5. 0 desyncs
+6. 0 desyncs
