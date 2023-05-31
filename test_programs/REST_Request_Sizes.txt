@@ -1,0 +1,5 @@
+allocate_low_task   - 700 bytes (400 bytes for body, 300 for headers)
+allocate_high_task  - 2.25 kb   (2kb for body, .25 for headers)
+state_update        - 550 bytes (310 bytes for body 235 bytes for headers)
+halt_request        - 550 bytes (320 bytes for body 230 bytes for headers)
+TASK_FORWARD        - 21.5 kb   (21.10kb for body 0.4 kb for headers)

@@ -1,13 +1,15 @@
-from typing import List
+import ntplib
 import threading
 import logging
 import experiment_loop
 import experiment_manager
+from datetime import datetime
 import sys
 import json
 import TraceParser
 import Globals
-
+import Constants
+import os
 
 def start_REST(logging):
     ThreadStart(logging, experiment_manager.run_server, "REST") # type: ignore # type: ignore
@@ -26,7 +28,24 @@ def ThreadStart(logging, function, thread_name):
     return
 
 
+def sync_timestamp():
+    # Create an NTP client
+    client = ntplib.NTPClient()
+
+    # Query the NTP server and get the response
+    response = client.request(Constants.CONTROLLER_HOST_NAME)
+
+    # Adjust the local system time based on the NTP server's response
+    now = datetime.fromtimestamp(response.tx_time)
+
+    # Set the system time of the current device
+    # Note: Setting system time may require elevated privileges (e.g., running as administrator)
+    # Consult the platform-specific documentation for setting system time in your environment
+    os.system('sudo date -s "{}"'.format(now))
+
+
 def main():
+    sync_timestamp()
     logging.basicConfig(level=logging.INFO)
     start_REST(logging)
     start_experiment_loop(logging)

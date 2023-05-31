@@ -4,13 +4,13 @@ import OutboundComms
 import WorkWaitingQueue
 import inference_engine
 import rest_server
-import Globals
 import iperf_server
-import json
 import requests
 import Constants
 import ResultQueueManager
-# from grpc_server import run_GRPC_Server
+import ntplib
+import os
+from datetime import datetime
 
 
 def start_REST(logging):
@@ -42,7 +42,6 @@ def hello(logging):
     requests.post(endpoint)
 
 
-
 def start_inference_engine(logging):
     inference_handler = inference_engine.InferenceHandler() # type: ignore
     ThreadStart(logging, inference_handler.run, "Inference Engine")
@@ -58,8 +57,25 @@ def start_WorkWaitingQueue(logging):
     ThreadStart(logging, WorkWaitingQueue.work_loop, "Work Waiting Queue")
 
 
+def sync_timestamp():
+    # Create an NTP client
+    client = ntplib.NTPClient()
+
+    # Query the NTP server and get the response
+    response = client.request(Constants.CONTROLLER_HOST_NAME)
+
+    # Adjust the local system time based on the NTP server's response
+    now = datetime.fromtimestamp(response.tx_time)
+
+    # Set the system time of the current device
+    # Note: Setting system time may require elevated privileges (e.g., running as administrator)
+    # Consult the platform-specific documentation for setting system time in your environment
+    os.system('sudo date -s "{}"'.format(now))
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
+    sync_timestamp()
     start_IPERF(logging)
     start_REST(logging)
     hello(logging)
