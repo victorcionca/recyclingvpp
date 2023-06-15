@@ -1,4 +1,5 @@
 apt install python3-pip
+apt install ntp
 apt install libopenjp2-7
 apt install libatlas-base-dev
 apt install iperf3
