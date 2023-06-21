@@ -2,7 +2,7 @@ import threading
 import logging
 import OutboundComms
 import WorkWaitingQueue
-import inference_engine
+import inference_engine_e2e_with_ipc
 import rest_server
 import iperf_server
 import requests
@@ -80,7 +80,7 @@ def main():
     start_REST(logging)
     hello(logging)
     start_ResultsQueueManager(logging)
-    start_inference_engine(logging)
+    # start_inference_engine(logging)
     startOutboundComms(logging)
     start_WorkWaitingQueue(logging)
 

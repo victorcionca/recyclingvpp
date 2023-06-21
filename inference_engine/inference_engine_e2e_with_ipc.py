@@ -27,6 +27,7 @@ import base64
 import json
 from PIL import Image
 import threading
+import Globals
 
 # TODO - the following must be configured
 model_folder = "vgg16_trashnet_conv_blocks/"
@@ -262,7 +263,7 @@ class PartitionProcess(threading.Thread):
         for handler in self.handlers:
             handler.kill()
         # Indicate that we have finished processing a request
-        response_queue.put({"TaskID": self.taskid})
+        Globals.results_queue.put({"TaskID": self.taskid})
 
 
 class InferenceHandler(Process):

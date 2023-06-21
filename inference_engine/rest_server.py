@@ -5,16 +5,13 @@ import queue
 from typing import List
 import Constants
 import Globals
-import inference_engine
+import inference_engine_e2e_with_ipc
 import DataProcessing
-import TaskForwarding
 import OutboundComm
 import OutboundComms
 import OutboundCommTypes
 import HighCompResult
-import datetime
 import WorkWaitingQueue
-import pickle
 from datetime import datetime as dt
 
 hostName = "localhost"
@@ -82,9 +79,10 @@ class RestInterface(BaseHTTPRequestHandler):
         dnn_id: str = jsonRequest["dnn_id"]
 
         dnn_items_tasks: list[str] = []
-        for key, taskForwardItem in Globals.dnn_hold_dict.items():
-            if taskForwardItem.high_comp_result.dnn_id == dnn_id:
-                dnn_items_tasks.append(taskForwardItem.unique_task_id)
+        for key, dnn_task in Globals.dnn_hold_dict.items():
+            if dnn_task.dnn_id == dnn_id:
+                Globals.core_usage = Globals.core_usage - (dnn_task.n * dnn_task.m)
+                dnn_items_tasks.append(dnn_task.dnn_id)
 
         cores_to_clear = []
 
@@ -104,7 +102,7 @@ class RestInterface(BaseHTTPRequestHandler):
         Globals.net_outbound_list = [
             item for item in Globals.net_outbound_list if item.dnn_id != dnn_id]
         Globals.work_waiting_queue = [
-            item for item in Globals.work_waiting_queue if item["work_item"]["TaskID"] not in dnn_items_tasks]
+            item for item in Globals.work_waiting_queue if item["TaskID"] not in dnn_items_tasks]
 
         Globals.work_queue_lock.release()
         return
@@ -126,10 +124,7 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
     shape = input_shape
     
     if len(input_shape) == 0:
-        load_result = inference_engine.LoadImage({ # type: ignore
-            "filename": Constants.INITIAL_FILE_PATH,
-            "TaskID": dnn_task.dnn_id
-        })
+        load_result = inference_engine_e2e_with_ipc.LoadImage(None, dnn_task.dnn_id)
 
         if isinstance(load_result, dict):
             load_data = load_result
@@ -140,58 +135,20 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
         shape = load_result["shape"]
 
     partition_data = {}
-    partition_result = inference_engine.PartitionData({ # type: ignore
+    work_item = { # type: ignore
         "data": data,
+        "start_time": dnn_task.estimated_start,
         "shape": shape,
-        "convblockidx": int(starting_convidx),
         "N": dnn_task.n,
         "M": dnn_task.m,
+        "cores": dnn_task.n * dnn_task.m,
         "TaskID": dnn_task.dnn_id
-    })
+    }
 
-    if isinstance(partition_result, dict):
-        partition_data = partition_result
-        with open("partitioned_input.pkl", "wb") as f:
-            pickle.dump(partition_data, f)
+    if not DataProcessing.check_if_dnn_halted(dnn_id=dnn_task.dnn_id, dnn_version=dnn_task.version):
+        Globals.dnn_hold_dict[dnn_task.dnn_id] = dnn_task
 
-    else:
-        return
-
-    for tile_item in partition_data["Tiles"]:
-        forward_item = TaskForwarding.TaskForwarding(highCompResult=dnn_task, convIdx=int(starting_convidx), nIdx=tile_item["tile_details"]["Nidx"], mIdx=tile_item["tile_details"]["Midx"], topX=tile_item["tile_details"][
-            "top_x"], topY=tile_item["tile_details"]["top_y"],
-            botX=tile_item["tile_details"]["bot_x"], botY=tile_item["tile_details"]["bot_y"],
-            data=tile_item["data"], shape=tile_item["shape"])
-
-        if not DataProcessing.check_if_dnn_halted(dnn_id=forward_item.high_comp_result.dnn_id, dnn_version=forward_item.high_comp_result.version):
-            Globals.dnn_hold_dict[forward_item.unique_task_id] = forward_item
-
-            
-
-            start_time = datetime.datetime.now(
-            ) if starting_convidx != "1" else dnn_task.estimated_start
-
-            work_item = {
-                "start_time": start_time,
-                "work_item": {
-                    "type": "task",
-                    "data": forward_item.data,
-                    "shape": forward_item.shape,
-                    "convblockidx": int(starting_convidx),
-                    "core": -1,
-                    "tile_details": {
-                        "Nidx": forward_item.nidx,
-                        "Midx": forward_item.midx,
-                        "top_x": forward_item.top_x,
-                        "top_y": forward_item.top_y,
-                        "bot_x": forward_item.bot_x,
-                        "bot_y": forward_item.bot_y
-                    },
-                    "TaskID": forward_item.unique_task_id
-                }
-            }
-
-            WorkWaitingQueue.add_task(work_item=work_item)
+        WorkWaitingQueue.add_task(work_item=work_item)
 
 
 
