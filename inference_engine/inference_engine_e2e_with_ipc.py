@@ -140,6 +140,22 @@ class PartitionProcess(threading.Thread):
             handler.start()
             self.handlers.append(handler)
             self.handler_pipes.append(results_conns[core])
+        self.halt_event = threading.Event()
+
+    def halt(self):
+        """
+        Halts an ongoing DNN. Stops the processing of the convolutional blocks
+        and kills all the subprocesses involved.
+
+        The majority of processing time is spent waiting for the inference 
+        subprocesses. Therefore the halt operation will first kill the subprocesses
+        and then must ensure the PartitionProcess thread finishes gracefully.
+        """
+        self.halt_event.set()
+        # Kill the subprocesses
+        for handler in self.handlers:
+            handler.kill()
+            handler.join()
 
     def run(self):
         # Go through the chain of models
@@ -226,13 +242,17 @@ class PartitionProcess(threading.Thread):
             tile_resp = []
             readers = [r for (r,w) in self.handler_pipes]
             while len(tile_resp) < self.partN*self.partM:
-                for r in wait(readers):
+                if self.halt_event.is_set():
+                    return
+                for r in wait(readers, timeout=1):
                     tile_resp_bytes = r.recv_bytes()
                     if len(tile_resp_bytes) == 0: continue
                     logging.info(f"{time()}: Received tile response {len(tile_resp_bytes)} bytes. Readers: {len(readers)}")
                     # TODO filter task ID
                     tile_resp.append(pickle.loads(tile_resp_bytes))
                     readers.remove(r)
+            if self.halt_event.is_set():
+                return
             # Assemble
             output_shape = metadata_list[block_idx*10][-1]['output_shape']
             logging.info(f"{time()}: Assembling block {block_idx} into {output_shape}")
