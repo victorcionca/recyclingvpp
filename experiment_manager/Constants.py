@@ -29,4 +29,4 @@ CONTROLLER_HIGH_COMP_ALLOCATION = f"{CONTROLLER_DEFAULT_ROUTE}/high_offload_requ
 CONTROLLER_STATE_UPDATE = f"{CONTROLLER_DEFAULT_ROUTE}/state_update"
 
 INITIAL_FILE_PATH = "/Users/jamiecotter/Documents/Work/PhD/recyclingvpp/inference_engine/metal110.jpg"
-CLIENT_ADDRESS = "192.168.0.14"
+CLIENT_ADDRESS = "raspberrypi1.local"

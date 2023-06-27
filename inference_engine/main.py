@@ -2,7 +2,6 @@ import threading
 import logging
 import OutboundComms
 import WorkWaitingQueue
-import inference_engine_e2e_with_ipc
 import rest_server
 import iperf_server
 import requests
@@ -11,6 +10,8 @@ import ResultQueueManager
 import ntplib
 import os
 from datetime import datetime
+import sys
+import Constants
 
 
 def start_REST(logging):
@@ -74,13 +75,13 @@ def sync_timestamp():
 
 
 def main():
+    Constants.CLIENT_ADDRESS = sys.argv[1]
     logging.basicConfig(level=logging.INFO)
     sync_timestamp()
     start_IPERF(logging)
     start_REST(logging)
     hello(logging)
     start_ResultsQueueManager(logging)
-    # start_inference_engine(logging)
     startOutboundComms(logging)
     start_WorkWaitingQueue(logging)
 

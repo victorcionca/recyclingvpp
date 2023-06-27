@@ -17,7 +17,7 @@ def work_loop():
     while True:
         Globals.work_queue_lock.acquire(blocking=True)
         
-        if Globals.core_usage + Globals.work_waiting_queue[0]["cores"] > Constants.CORE_COUNT or len(Globals.work_waiting_queue) == 0:
+        if len(Globals.work_waiting_queue) == 0 or Globals.core_usage + Globals.work_waiting_queue[0]["cores"] > Constants.CORE_COUNT:
             Globals.work_queue_lock.release()
             continue
 
