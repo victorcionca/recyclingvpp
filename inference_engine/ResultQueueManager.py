@@ -14,24 +14,32 @@ def ResultsQueueLoop():
         task_id: str = result_obj["TaskID"]
 
         Globals.work_queue_lock.acquire()
-        for i in range(1, Constants.CORE_COUNT + 1):
+        core_map_used = False
+        for i in range(0, Constants.CORE_COUNT):
             if Globals.core_map[i] == task_id:
-                Globals.core_map[i] = -1
+                Globals.core_map[i] = ""
+                core_map_used = True
 
         dnn_core_usage = (Globals.dnn_hold_dict[task_id].m * Globals.dnn_hold_dict[task_id].n)
-        Globals.core_usage = Globals.core_usage - dnn_core_usage
+
+        if core_map_used:
+            Globals.core_usage = Globals.core_usage - dnn_core_usage
         
-        version = Globals.dnn_hold_dict[task_id].version
-        del Globals.thread_holder[task_id]
-        del Globals.dnn_hold_dict[task_id]
+        version = -1
+        if task_id in Globals.dnn_hold_dict.keys():
+            version = Globals.dnn_hold_dict[task_id].version
+            
+            del Globals.dnn_hold_dict[task_id]
+            if task_id in Globals.thread_holder.keys():
+                del Globals.thread_holder[task_id]
         Globals.work_queue_lock.release()
                     
         payload = {
             "dnn_id": task_id,
             "finish_time": int(finish_time.timestamp() * 1000)
         }
-
-        state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(), comm_type=OutboundCommTypes.OutboundCommType.STATE_UPDATE, payload=payload, dnn_id=task_id, version=version)
-        OutboundComms.add_task_to_queue(state_update_comm)
+        if version != -1:
+            state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(), comm_type=OutboundCommTypes.OutboundCommType.STATE_UPDATE, payload=payload, dnn_id=task_id, version=version)
+            OutboundComms.add_task_to_queue(state_update_comm)
 
     return

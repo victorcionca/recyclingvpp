@@ -33,11 +33,11 @@ host_name = ""
 
 # Used to hold our map of cores in use
 # key is the core, value is the task using it
-core_map: Dict[int, int] = {
-    0: -1,
-    1: -1,
-    2: -1,
-    3: -1
+core_map: Dict[int, str] = {
+    0: "",
+    1: "",
+    2: "",
+    3: ""
 }
 
 # Need to hold threads so that I can halt later if need be
