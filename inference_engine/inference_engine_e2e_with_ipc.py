@@ -18,26 +18,27 @@ TODO:
     * dense layers at the end.
 """
 
-from time import time
 import pickle
 import os
-from random import shuffle
+from random import shuffle, randint, random
 import fused_tiled_partitioning as FTP
 import numpy as np
 import base64
 import json
 from PIL import Image
 import threading
+import Globals
 
 # TODO - the following must be configured
 model_folder = "vgg16_trashnet_conv_blocks/"
 model_filename = "vgg16_conv_block_{block_idx}.tflite"
 maxpool_filename = "vgg16_maxpool_{block_idx}.tflite"
-from time import sleep
+from time import sleep, time
 from multiprocessing import Process, Queue, Lock, Pipe
 from multiprocessing.connection import wait
 import signal
-
+from queue import Queue
+Queue()
 import logging
 import tflite_runtime.interpreter as tflite
 
@@ -70,7 +71,7 @@ def deserialize_numpy(array_bytes, shape):
     array = np.frombuffer(array_bytes, dtype=np.float32)
     return array.reshape(shape)
 
-def LoadImage(request):
+def LoadImage(request, taskid):
     #if "filename" not in request:
     #    # TODO signal error
     #    return None
@@ -91,44 +92,7 @@ def LoadImage(request):
     response["filename"] = "inputs"
     response["data"] = img_data_bytes
     response["shape"] = list(img_data.shape)
-    response["TaskID"] = "1234545"
-    return response
-
-def PartitionData(request):
-    reqd_fields = ["data", "shape", "N", "M", "convblockidx", "TaskID"]
-    for f in reqd_fields:
-        if f not in request:
-            # TODO signal error
-            return None
-    # Extract the input from the request
-    input_data = deserialize_numpy(request["data"], request["shape"])
-    # Extract the partition specs
-    partN = request["N"]
-    partM = request["M"]
-    convblockidx = request["convblockidx"]
-    # Get the conv block metadata
-    conv_block_metadata = pickle.load(open(os.path.join(model_folder,
-                                        "conv_block_metadata.pickle"), 'rb'))
-    # Get the partition details
-    part_details = FTP.get_partition_details(input_data,
-                                            conv_block_metadata[convblockidx],
-                                            partN, partM)
-    response = dict()
-    response["TaskID"] = request["TaskID"]
-    response["Tiles"] = []
-    # For each partition, get the input data
-    for p in part_details:
-        tile = dict()
-        part_data = FTP.get_partition_data(p, input_data)
-        tile["data"], tile["shape"] = serialize_numpy(part_data)
-        tile["tile_details"] = {}
-        tile["tile_details"]["Nidx"] = p.Nidx
-        tile["tile_details"]["Midx"] = p.Midx
-        tile["tile_details"]["top_x"] = p.top_left_x
-        tile["tile_details"]["bot_x"] = p.top_left_x + part_data.shape[2] - 1
-        tile["tile_details"]["top_y"] = p.top_left_y
-        tile["tile_details"]["bot_y"] = p.top_left_y + part_data.shape[1] - 1
-        response["Tiles"].append(tile)
+    response["TaskID"] = taskid
     return response
 
 # Load the metadata and create the flat list for processing
@@ -142,151 +106,184 @@ processing_conns = [Pipe() for _ in range(4)]
 results_conns = [Pipe() for _ in range(4)]
 
 # For experiments
-request_lock = threading.Lock()
+#request_lock = threading.Lock()
+response_queue = Queue()
 
 
+class PartitionProcess(threading.Thread):
 
-def PartitionProcess(request):
-    reqd_fields = ["data", "shape", "N", "M", "cores", "TaskID"]
-    for f in reqd_fields:
-        if f not in request:
-            # TODO signal error
-            return None
-    # Extract the input from the request
-    input_data = deserialize_numpy(request["data"], request["shape"])
-    # Extract the partition specs
-    partN = request["N"]
-    partM = request["M"]
-    # Setup the inference processors on the required cores
-    handlers = []
-    handler_pipes = []
-    for idx, core in enumerate(request["cores"]):
-        handler = InferenceHandler(core, partN*partM, idx)
-        handler.start()
-        handlers.append(handler)
-        handler_pipes.append(results_conns[core])
-    # Go through the chain of models
-    logging.debug(f"Process {request['TaskID']}")
-    output = input_data
-    prev_tile_shapes = [None for _ in range(partN*partM)]
-    # This only goes through the conv blocks as the maxpool layers
-    # are processed by the InferenceProcessors
-    for block_idx in range(1,5+1):
-        logging.debug(f"Process block {block_idx}")
-        # Generate the tiles for this block
-        tiles = FTP.FTP(metadata_list[block_idx], partN, partM)
-        tiles = [t for tlist in tiles[0] for t in tlist]
-        # Package the tiles into requests and dispatch to processors
-        start = time()
-        for idx, tile in enumerate(tiles):
-            # Generate tile processing requests
-            tile_req = dict()
-            tile_data = output[:,
-                        tile.top_left_y:tile.bottom_right_y+1,
-                        tile.top_left_x:tile.bottom_right_x+1,:]
-            if prev_tile_shapes[idx] == None or block_idx == 5:
-                logging.debug(f"Sending full tile {tile_data.shape}")
-                tile_req["data"] = {"data":tile_data, "type":"new"}
-            else:
-                new_columns = None
-                new_rows = None
-                column_position = None
-                row_position = None
-                logging.debug(f"Previous tile {prev_tile_shapes[idx]}, current tile {tile}")
-                logging.debug(f"Current tile: {tile.top_left_x, tile.top_left_y, tile.bottom_right_x, tile.bottom_right_y}")
-                # What we add on x axis (additional columns)
-                if tile.top_left_x < prev_tile_shapes[idx]['top_x']:
-                    new_columns = output[:,
-                            prev_tile_shapes[idx]['top_y']:prev_tile_shapes[idx]['bot_y']+1,
-                            tile.top_left_x:prev_tile_shapes[idx]['top_x'], :]
-                    column_position = 'before'
-                if tile.bottom_right_x > prev_tile_shapes[idx]['bot_x']:
-                    new_columns = output[:,
-                            prev_tile_shapes[idx]['top_y']:prev_tile_shapes[idx]['bot_y']+1,
-                            prev_tile_shapes[idx]['bot_x']+1:tile.bottom_right_x+1, :]
-                    column_position = 'after'
-                # What we add on y axis (additional rows)
-                if tile.top_left_y < prev_tile_shapes[idx]['top_y']:
-                    new_rows = output[:,
-                            tile.top_left_y:prev_tile_shapes[idx]['top_y'],
-                            tile.top_left_x:tile.bottom_right_x+1, :]
-                    row_position = 'before'
-                if tile.bottom_right_y > prev_tile_shapes[idx]['bot_y']:
-                    new_rows = output[:,
-                            prev_tile_shapes[idx]['bot_y']+1:tile.bottom_right_y+1,
-                            tile.top_left_x:tile.bottom_right_x+1, :]
-                    row_position = 'after'
-                if column_position == None and row_position == None:
-                    logging.debug(f"Tile is not changing")
-                    tile_req["data"] = {"type": "same"}
+    def __init__(self, request):
+        """
+        Creates a Partition and Process manager to process an incoming
+        request.
+        The manager will follow the request through all its blocks.
+        """
+        super().__init__()
+        # Process the fields of the request
+        reqd_fields = ["data", "shape", "N", "M", "cores", "TaskID"]
+        for f in reqd_fields:
+            if f not in request:
+                # TODO raise ValueError
+                return None
+        # Extract the input from the request
+        self.input_data = deserialize_numpy(request["data"], request["shape"])
+        # Extract the partition specs
+        self.partN = request["N"]
+        self.partM = request["M"]
+        self.taskid = request["TaskID"]
+        # Setup the inference processors on the required cores
+        self.handlers = []
+        self.handler_pipes = []
+        self.cores = request['cores']
+        for idx, core in enumerate(request["cores"]):
+            handler = InferenceHandler(core, self.partN*self.partM, idx)
+            handler.start()
+            self.handlers.append(handler)
+            self.handler_pipes.append(results_conns[core])
+        self.halt_event = threading.Event()
+
+    def halt(self):
+        """
+        Halts an ongoing DNN. Stops the processing of the convolutional blocks
+        and kills all the subprocesses involved.
+
+        The majority of processing time is spent waiting for the inference 
+        subprocesses. Therefore the halt operation will first kill the subprocesses
+        and then must ensure the PartitionProcess thread finishes gracefully.
+        """
+        self.halt_event.set()
+        # Kill the subprocesses
+        for handler in self.handlers:
+            handler.kill()
+            handler.join()
+
+    def run(self):
+        # Go through the chain of models
+        logging.debug(f"Process {self.taskid}")
+        output = self.input_data
+        prev_tile_shapes = [None for _ in range(self.partN*self.partM)]
+        # This only goes through the conv blocks as the maxpool layers
+        # are processed by the InferenceProcessors
+        for block_idx in range(1,5+1):
+            logging.debug(f"Process block {block_idx}")
+            # Generate the tiles for this block
+            tiles = FTP.FTP(metadata_list[block_idx], self.partN, self.partM)
+            tiles = [t for tlist in tiles[0] for t in tlist]
+            # Package the tiles into requests and dispatch to processors
+            start = time()
+            for idx, tile in enumerate(tiles):
+                # Generate tile processing requests
+                tile_req = dict()
+                tile_data = output[:,
+                            tile.top_left_y:tile.bottom_right_y+1,
+                            tile.top_left_x:tile.bottom_right_x+1,:]
+                if prev_tile_shapes[idx] == None or block_idx == 5:
+                    logging.debug(f"Sending full tile {tile_data.shape}")
+                    tile_req["data"] = {"data":tile_data, "type":"new"}
                 else:
-                    tile_req["data"] = {"type":"offset",
-                                    "new_columns": new_columns, "column_position": column_position,
-                                    "new_rows": new_rows, "row_position": row_position} 
-                    logging.debug(f"Sending columns {new_columns.shape if column_position else ''} {column_position} and rows {new_rows.shape if row_position else ''} {row_position}")
-            tile_req["shape"] = tile_data.shape
-            tile_req['convblockidx'] = block_idx
-            tile_req["tile_details"] = dict()
-            tile_req["tile_details"]["top_x"] = tile.top_left_x
-            tile_req["tile_details"]["top_y"] = tile.top_left_y
-            tile_req["tile_details"]["bot_x"] = tile.bottom_right_x
-            tile_req["tile_details"]["bot_y"] = tile.bottom_right_y
-            tile_req["tile_details"]["Nidx"] = int(np.floor(idx/partN))
-            tile_req["tile_details"]["Midx"] = idx % partM
-            tile_req["main_input"] = dict()
-            block_output_shape = metadata_list[block_idx*10][-1]['output_shape']
-            tile_req["main_input"]["width"] = output.shape[2]
-            tile_req["main_input"]["height"] = output.shape[1]
-            #tile_req["main_input"]["width"] = block_output_shape[2]
-            #tile_req["main_input"]["height"] = block_output_shape[1]
-            tile_req["TaskID"] = request["TaskID"]
-            # Tell the processor the size of the edges of the tile to return
-            # This is equal to num_conv_layers*
-            # Feed the tiles into the processing queue of the proper core
-            logging.info(f"{time()}: Submit tile {idx} to core")
-            processing_conns[idx][1].send_bytes(pickle.dumps(tile_req))
-        # Wait for all the tiles to be processed
-        tile_resp = []
-        readers = [r for (r,w) in handler_pipes]
-        while len(tile_resp) < partN*partM:
-            for r in wait(readers):
-                tile_resp_bytes = r.recv_bytes()
-                if len(tile_resp_bytes) == 0: continue
-                logging.info(f"{time()}: Received tile response {len(tile_resp_bytes)} bytes. Readers: {len(readers)}")
-                # TODO filter task ID
-                tile_resp.append(pickle.loads(tile_resp_bytes))
-                readers.remove(r)
-        # Assemble
-        output_shape = metadata_list[block_idx*10][-1]['output_shape']
-        logging.info(f"{time()}: Assembling block {block_idx} into {output_shape}")
-        output = np.zeros((1, *output_shape[1:]), dtype=np.float32)
-        # Sort tiles in order of Nidx*N+Midx
-        sorted_tiles = sorted(tile_resp,
-                      key=lambda t: t["tile_details"]["Nidx"]*partN+t["tile_details"]["Midx"])
-        # Assemble in grid format
-        crt_x = 0
-        crt_y = 0
-        for tidx, tile in enumerate(sorted_tiles):
-            tile_data = tile["data"]
-            #if metadata_list[block_idx][-1]['layer_type'] == 'maxpool':
-            output[:,
-                    crt_y:crt_y+tile["shape"][1],
-                    crt_x:crt_x+tile["shape"][2],:] = tile_data
-            prev_tile_shapes[tidx] = {
-                    'top_x': crt_x, 'top_y': crt_y,
-                    'bot_x': crt_x+tile["shape"][2]-1,
-                    'bot_y': crt_y+tile["shape"][1]-1}
-            if tidx % partM == partM - 1:
-                crt_y += tile["shape"][1]
-                crt_x = 0
-            else:
-                crt_x += tile["shape"][2]
-    logging.debug(f"Finished processing task {request['TaskID']}. Output shape {output.shape}") 
-    # Destroy the processors
-    for handler in handlers:
-        handler.kill()
-    # Indicate that we have finished processing a request
-    request_lock.release()
+                    new_columns = None
+                    new_rows = None
+                    column_position = None
+                    row_position = None
+                    logging.debug(f"Previous tile {prev_tile_shapes[idx]}, current tile {tile}")
+                    logging.debug(f"Current tile: {tile.top_left_x, tile.top_left_y, tile.bottom_right_x, tile.bottom_right_y}")
+                    # What we add on x axis (additional columns)
+                    if tile.top_left_x < prev_tile_shapes[idx]['top_x']:
+                        new_columns = output[:,
+                                prev_tile_shapes[idx]['top_y']:prev_tile_shapes[idx]['bot_y']+1,
+                                tile.top_left_x:prev_tile_shapes[idx]['top_x'], :]
+                        column_position = 'before'
+                    if tile.bottom_right_x > prev_tile_shapes[idx]['bot_x']:
+                        new_columns = output[:,
+                                prev_tile_shapes[idx]['top_y']:prev_tile_shapes[idx]['bot_y']+1,
+                                prev_tile_shapes[idx]['bot_x']+1:tile.bottom_right_x+1, :]
+                        column_position = 'after'
+                    # What we add on y axis (additional rows)
+                    if tile.top_left_y < prev_tile_shapes[idx]['top_y']:
+                        new_rows = output[:,
+                                tile.top_left_y:prev_tile_shapes[idx]['top_y'],
+                                tile.top_left_x:tile.bottom_right_x+1, :]
+                        row_position = 'before'
+                    if tile.bottom_right_y > prev_tile_shapes[idx]['bot_y']:
+                        new_rows = output[:,
+                                prev_tile_shapes[idx]['bot_y']+1:tile.bottom_right_y+1,
+                                tile.top_left_x:tile.bottom_right_x+1, :]
+                        row_position = 'after'
+                    if column_position == None and row_position == None:
+                        logging.debug(f"Tile is not changing")
+                        tile_req["data"] = {"type": "same"}
+                    else:
+                        tile_req["data"] = {"type":"offset",
+                                        "new_columns": new_columns, "column_position": column_position,
+                                        "new_rows": new_rows, "row_position": row_position} 
+                        logging.debug(f"Sending columns {new_columns.shape if column_position else ''} {column_position} and rows {new_rows.shape if row_position else ''} {row_position}")
+                tile_req["shape"] = tile_data.shape
+                tile_req['convblockidx'] = block_idx
+                tile_req["tile_details"] = dict()
+                tile_req["tile_details"]["top_x"] = tile.top_left_x
+                tile_req["tile_details"]["top_y"] = tile.top_left_y
+                tile_req["tile_details"]["bot_x"] = tile.bottom_right_x
+                tile_req["tile_details"]["bot_y"] = tile.bottom_right_y
+                tile_req["tile_details"]["Nidx"] = int(np.floor(idx/self.partN))
+                tile_req["tile_details"]["Midx"] = idx % self.partM
+                tile_req["main_input"] = dict()
+                block_output_shape = metadata_list[block_idx*10][-1]['output_shape']
+                tile_req["main_input"]["width"] = output.shape[2]
+                tile_req["main_input"]["height"] = output.shape[1]
+                #tile_req["main_input"]["width"] = block_output_shape[2]
+                #tile_req["main_input"]["height"] = block_output_shape[1]
+                tile_req["TaskID"] = self.taskid
+                # Tell the processor the size of the edges of the tile to return
+                # This is equal to num_conv_layers*
+                # Feed the tiles into the processing queue of the proper core
+                logging.info(f"{time()}: Submit tile {idx} to core")
+                processing_conns[self.cores[idx]][1].send_bytes(pickle.dumps(tile_req))
+            # Wait for all the tiles to be processed
+            tile_resp = []
+            readers = [r for (r,w) in self.handler_pipes]
+            while len(tile_resp) < self.partN*self.partM:
+                if self.halt_event.is_set():
+                    return
+                for r in wait(readers, timeout=1):
+                    tile_resp_bytes = r.recv_bytes()
+                    if len(tile_resp_bytes) == 0: continue
+                    logging.info(f"{time()}: Received tile response {len(tile_resp_bytes)} bytes. Readers: {len(readers)}")
+                    # TODO filter task ID
+                    tile_resp.append(pickle.loads(tile_resp_bytes))
+                    readers.remove(r)
+            if self.halt_event.is_set():
+                return
+            # Assemble
+            output_shape = metadata_list[block_idx*10][-1]['output_shape']
+            logging.info(f"{time()}: Assembling block {block_idx} into {output_shape}")
+            output = np.zeros((1, *output_shape[1:]), dtype=np.float32)
+            # Sort tiles in order of Nidx*N+Midx
+            sorted_tiles = sorted(tile_resp,
+                          key=lambda t: t["tile_details"]["Nidx"]*self.partN+t["tile_details"]["Midx"])
+            # Assemble in grid format
+            crt_x = 0
+            crt_y = 0
+            for tidx, tile in enumerate(sorted_tiles):
+                tile_data = tile["data"]
+                #if metadata_list[block_idx][-1]['layer_type'] == 'maxpool':
+                output[:,
+                        crt_y:crt_y+tile["shape"][1],
+                        crt_x:crt_x+tile["shape"][2],:] = tile_data
+                prev_tile_shapes[tidx] = {
+                        'top_x': crt_x, 'top_y': crt_y,
+                        'bot_x': crt_x+tile["shape"][2]-1,
+                        'bot_y': crt_y+tile["shape"][1]-1}
+                if tidx % self.partM == self.partM - 1:
+                    crt_y += tile["shape"][1]
+                    crt_x = 0
+                else:
+                    crt_x += tile["shape"][2]
+        logging.debug(f"Finished processing task {self.taskid}. Output shape {output.shape}") 
+        # Destroy the processors
+        for handler in self.handlers:
+            handler.kill()
+        # Indicate that we have finished processing a request
+        Globals.results_queue.put({"TaskID": self.taskid})
 
 
 class InferenceHandler(Process):
@@ -473,15 +470,50 @@ class InferenceHandler(Process):
 if __name__ == '__main__':
     # create the inference handlers for each core
     os.sched_setaffinity(0, [3])
-    img_resp = LoadImage(None)
-    img_resp['N'] = 2
-    img_resp['M'] = 2
-    img_resp['cores'] = [0,1,2,3]
-    start = time()
-    num_iters = 10
-    for i in range(num_iters):
-        print(f"Processing {i}")
-        request_lock.acquire()
-        PartitionProcess(img_resp)
-    end = time()
-    print(f"Average processing {(end-start)/num_iters}")
+    # Parallel experiment
+    cores = [0 for _ in range(4)] # This stores tasks allocated to cores
+    while True:
+        # Wait until 2 cores are available
+        available_cores = []
+        for cidx,c in enumerate(cores):
+            if c == 0:
+                available_cores.append(cidx)
+        if len(available_cores) == 0:
+            response = response_queue.get() # Wait for a request to finish processing
+            print(f"{response['TaskID']} completed")
+            for cidx,c in enumerate(cores):
+                if c == response['TaskID']:
+                    available_cores.append(cidx)
+        if len(available_cores) > 2:
+            available_cores = available_cores[:2]
+        # Generate a new request
+        task_id = f"task{randint(100,1000)}"
+        img_resp = LoadImage(None, task_id)
+        img_resp['N'] = 1
+        img_resp['M'] = 2
+        img_resp['cores'] = available_cores
+        # Mark the cores as in-use
+        for c in available_cores:
+            cores[c] = task_id
+        # Create the partition and process thread
+        print(f"Processing {task_id} on {available_cores}")
+        proc_thread = PartitionProcess(img_resp)
+        # Dispatch the thread
+        proc_thread.start()
+        # Take a little break
+        sleep(0.5 + random())
+
+
+    # Below is sequential experiment
+    #img_resp = LoadImage(None)
+    #img_resp['N'] = 2
+    #img_resp['M'] = 2
+    #img_resp['cores'] = [0,1,2,3]
+    #start = time()
+    #num_iters = 10
+    #for i in range(num_iters):
+    #    print(f"Processing {i}")
+    #    request_lock.acquire()
+    #    PartitionProcess(img_resp)
+    #end = time()
+    #print(f"Average processing {(end-start)/num_iters}")

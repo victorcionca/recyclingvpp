@@ -5,16 +5,13 @@ import queue
 from typing import List
 import Constants
 import Globals
-import inference_engine
+import inference_engine_e2e_with_ipc
 import DataProcessing
-import TaskForwarding
 import OutboundComm
 import OutboundComms
 import OutboundCommTypes
 import HighCompResult
-import datetime
 import WorkWaitingQueue
-import pickle
 from datetime import datetime as dt
 
 hostName = "localhost"
@@ -45,20 +42,53 @@ class RestInterface(BaseHTTPRequestHandler):
         try:
             json_request: dict = json.loads(request_body)
 
-            if self.path == Constants.HALT_ENDPOINT:
-                self.halt_task(jsonRequest=json_request)
-            elif self.path == Constants.TASK_ALLOCATION:
+            if self.path == Constants.TASK_ALLOCATION:
                 self.general_allocate_and_forward_function(
                     json_request_body=json_request)
             elif self.path == Constants.TASK_FORWARD:
                 self.task_allocation_function(json_request_body=json_request)
+            elif self.path == Constants.HALT_ENDPOINT:
+                self.halt_endpoint(json_request_body=json_request)
+
 
         except json.JSONDecodeError:
             print(f"Received request was not json: {request_str}")
             response_code = 400
             return
 
-    # This function assumes that the lock has been acquired beforehand
+    
+    def halt_endpoint(self, json_request_body: dict):
+        dnn_id = json_request_body["dnn_id"]
+        version = int(json_request_body["version"])
+
+        Globals.work_queue_lock.acquire(blocking=True)
+
+        if dnn_id in Globals.dnn_hold_dict.keys():
+            dnn = Globals.dnn_hold_dict[dnn_id]
+            if dnn.version == version:
+                if dnn_id in Globals.thread_holder.keys():
+                    process_thread = Globals.thread_holder[dnn_id]
+                    process_thread.halt()
+
+                    for i in range(0, len(Globals.core_map.keys())):
+                        if Globals.core_map[i] == dnn_id:
+                            Globals.core_map[i] = ""
+
+                    Globals.core_usage = Globals.core_usage - (dnn.n * dnn.m)
+                    
+                    del Globals.thread_holder[dnn_id]
+                del Globals.dnn_hold_dict[dnn_id]
+        
+        if dnn_id not in Globals.halt_list.keys():
+            Globals.halt_list[dnn_id] = []
+        
+        if version not in Globals.halt_list[dnn_id]:
+            Globals.halt_list[dnn_id].append(version)
+
+        Globals.work_queue_lock.release()
+        return
+
+
     def general_allocate_and_forward_function(self, json_request_body: dict):
         dnn_task = HighCompResult.HighCompResult()
         dnn_task.generateFromDict(json_request_body)
@@ -75,39 +105,6 @@ class RestInterface(BaseHTTPRequestHandler):
             partition_and_process(
                 dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
             Globals.work_queue_lock.release()
-
-    def halt_task(self, jsonRequest: dict):
-
-        Globals.work_queue_lock.acquire(blocking=True)
-        dnn_id: str = jsonRequest["dnn_id"]
-
-        dnn_items_tasks: list[str] = []
-        for key, taskForwardItem in Globals.dnn_hold_dict.items():
-            if taskForwardItem.high_comp_result.dnn_id == dnn_id:
-                dnn_items_tasks.append(taskForwardItem.unique_task_id)
-
-        cores_to_clear = []
-
-        for task_id in dnn_items_tasks:
-            del Globals.dnn_hold_dict[task_id]
-
-            for key in Globals.core_map.keys():
-                if Globals.core_map[key] == task_id:
-                    Globals.core_map[key] = -1
-
-        for core in cores_to_clear:
-            Globals.work_queue.put({
-                "type": "prune",
-                "core": core
-            })
-
-        Globals.net_outbound_list = [
-            item for item in Globals.net_outbound_list if item.dnn_id != dnn_id]
-        Globals.work_waiting_queue = [
-            item for item in Globals.work_waiting_queue if item["work_item"]["TaskID"] not in dnn_items_tasks]
-
-        Globals.work_queue_lock.release()
-        return
 
     def task_allocation_function(self, json_request_body: dict):
         dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
@@ -126,10 +123,7 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
     shape = input_shape
     
     if len(input_shape) == 0:
-        load_result = inference_engine.LoadImage({ # type: ignore
-            "filename": Constants.INITIAL_FILE_PATH,
-            "TaskID": dnn_task.dnn_id
-        })
+        load_result = inference_engine_e2e_with_ipc.LoadImage(None, dnn_task.dnn_id)
 
         if isinstance(load_result, dict):
             load_data = load_result
@@ -140,58 +134,20 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
         shape = load_result["shape"]
 
     partition_data = {}
-    partition_result = inference_engine.PartitionData({ # type: ignore
+    work_item = { # type: ignore
         "data": data,
+        "start_time": dnn_task.estimated_start,
         "shape": shape,
-        "convblockidx": int(starting_convidx),
         "N": dnn_task.n,
         "M": dnn_task.m,
+        "cores": dnn_task.n * dnn_task.m,
         "TaskID": dnn_task.dnn_id
-    })
+    }
 
-    if isinstance(partition_result, dict):
-        partition_data = partition_result
-        with open("partitioned_input.pkl", "wb") as f:
-            pickle.dump(partition_data, f)
+    if not DataProcessing.check_if_dnn_halted(dnn_id=dnn_task.dnn_id, dnn_version=dnn_task.version):
+        Globals.dnn_hold_dict[dnn_task.dnn_id] = dnn_task
 
-    else:
-        return
-
-    for tile_item in partition_data["Tiles"]:
-        forward_item = TaskForwarding.TaskForwarding(highCompResult=dnn_task, convIdx=int(starting_convidx), nIdx=tile_item["tile_details"]["Nidx"], mIdx=tile_item["tile_details"]["Midx"], topX=tile_item["tile_details"][
-            "top_x"], topY=tile_item["tile_details"]["top_y"],
-            botX=tile_item["tile_details"]["bot_x"], botY=tile_item["tile_details"]["bot_y"],
-            data=tile_item["data"], shape=tile_item["shape"])
-
-        if not DataProcessing.check_if_dnn_halted(dnn_id=forward_item.high_comp_result.dnn_id, dnn_version=forward_item.high_comp_result.version):
-            Globals.dnn_hold_dict[forward_item.unique_task_id] = forward_item
-
-            
-
-            start_time = datetime.datetime.now(
-            ) if starting_convidx != "1" else dnn_task.estimated_start
-
-            work_item = {
-                "start_time": start_time,
-                "work_item": {
-                    "type": "task",
-                    "data": forward_item.data,
-                    "shape": forward_item.shape,
-                    "convblockidx": int(starting_convidx),
-                    "core": -1,
-                    "tile_details": {
-                        "Nidx": forward_item.nidx,
-                        "Midx": forward_item.midx,
-                        "top_x": forward_item.top_x,
-                        "top_y": forward_item.top_y,
-                        "bot_x": forward_item.bot_x,
-                        "bot_y": forward_item.bot_y
-                    },
-                    "TaskID": forward_item.unique_task_id
-                }
-            }
-
-            WorkWaitingQueue.add_task(work_item=work_item)
+        WorkWaitingQueue.add_task(work_item=work_item)
 
 
 

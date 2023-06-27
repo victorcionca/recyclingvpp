@@ -28,6 +28,12 @@ class RestInterface(BaseHTTPRequestHandler):
 
         response_code = 200
 
+        self.send_response(response_code)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+
+        self.wfile.write(bytes(response_json, "utf8"))
+
         try:
             json_request: dict = json.loads(request_body)
 
@@ -41,11 +47,11 @@ class RestInterface(BaseHTTPRequestHandler):
             response_code = 400
             return
 
-        self.send_response(response_code)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
+        # self.send_response(response_code)
+        # self.send_header('Content-type', 'application/json')
+        # self.end_headers()
 
-        self.wfile.write(bytes(response_json, "utf8"))
+        # self.wfile.write(bytes(response_json, "utf8"))
 
     def allocate_low_task(self, json_request: dict) -> None:
         dnn_id: str = json_request["dnn_id"]
@@ -74,16 +80,20 @@ class RestInterface(BaseHTTPRequestHandler):
             start_time = start_time + \
                 datetime.timedelta(seconds=Constants.FRAME_RATE / 2)
 
-        for i in range(0, len(Globals.trace_list)):
+        event_items = len(Globals.trace_list)
+        Globals.queue_lock.acquire(blocking=True)
+        for i in range(0, event_items):
             delta = datetime.timedelta(seconds=Constants.FRAME_RATE) * i
-            utils.add_task_to_event_queue(event_item={
-                                          "event_type": EventType.EventTypes.OBJECT_DETECT_START, "time": start_time + delta})
+            Globals.event_queue.append({"event_type": EventType.EventTypes.OBJECT_DETECT_START, "time": start_time + delta})
             delta = delta + \
                 datetime.timedelta(
                     milliseconds=Constants.OBJECT_DETECTION_TIME_MS)
-            utils.add_task_to_event_queue(event_item={
-                                          "event_type": EventType.EventTypes.OBJECT_DETECT_FINISH, "time": start_time + delta})
+            Globals.event_queue.append({"event_type": EventType.EventTypes.OBJECT_DETECT_FINISH, "time": start_time + delta})
 
+        Globals.event_queue.sort(key=lambda x: x["time"])
+        Globals.queue_lock.release()
+
+        logging.info("REST: Finished experiment setup")
         experiment_finish_time = start_time + \
             (datetime.timedelta(seconds=Constants.FRAME_RATE)
              * (Constants.OBJECT_DETECTION_COUNT + 1))

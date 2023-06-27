@@ -16,7 +16,9 @@ def run_loop():
 
     while dt.now() < Globals.EXPERIMENT_FINISH_TIME:
         Globals.queue_lock.acquire(blocking=True)
-        if len(Globals.event_queue) != 0 and Globals.event_queue[0]["time"] <= datetime.datetime.now():
+        event_time = Globals.event_queue[0]["time"]
+        now_time = datetime.datetime.now()
+        if len(Globals.event_queue) != 0 and event_time <= now_time:
             current_item: dict = Globals.event_queue.pop(0)
             
             if current_item["event_type"] == EventType.EventTypes.OBJECT_DETECT_START:
@@ -31,7 +33,7 @@ def run_loop():
             elif current_item["event_type"] == EventType.EventTypes.LOW_COMP_FINISH:
                 finish_time = current_item["time"]
                 print(f'{current_item["time"].strftime("%Y-%m-%d %H:%M:%S:%f")} LOW EXPECTED FIN')
-                print(f'{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S:%f")} NOW')
+                print(f'{now_time.strftime("%Y-%m-%d %H:%M:%S:%f")} NOW')
 
                 issue_low_comp_update(current_item["dnn_id"], current_item["time"])
                 

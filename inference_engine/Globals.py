@@ -3,8 +3,8 @@ import queue
 from multiprocessing import Queue
 from typing import Dict, List
 import OutboundComm
+import inference_engine_e2e_with_ipc
 import HighCompResult
-import TaskForwarding
 
 work_queue_lock = threading.Lock()
 
@@ -19,7 +19,7 @@ results_queue = Queue()
 net_outbound_list: List[OutboundComm.OutboundComm] = []
 
 # This holds dnns inbetween the task being sent to processing and the result being generated
-dnn_hold_dict: Dict[str, TaskForwarding.TaskForwarding] = {}
+dnn_hold_dict: Dict[str, HighCompResult.HighCompResult] = {}
 
 # This holds a queue of tasks to be processed,
 # ensures that tasks are only added to the work
@@ -33,9 +33,15 @@ host_name = ""
 
 # Used to hold our map of cores in use
 # key is the core, value is the task using it
-core_map: Dict[int, int] = {
-    0: -1,
-    1: -1,
-    2: -1,
-    3: -1
+core_map: Dict[int, str] = {
+    0: "",
+    1: "",
+    2: "",
+    3: ""
 }
+
+# Need to hold threads so that I can halt later if need be
+# Key is DNN ID, value is the processor
+thread_holder: Dict[str, inference_engine_e2e_with_ipc.PartitionProcess] = dict()
+
+core_usage = 0
