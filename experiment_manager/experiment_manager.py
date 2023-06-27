@@ -96,7 +96,7 @@ class RestInterface(BaseHTTPRequestHandler):
         logging.info("REST: Finished experiment setup")
         experiment_finish_time = start_time + \
             (datetime.timedelta(seconds=Constants.FRAME_RATE)
-             * (Constants.OBJECT_DETECTION_COUNT + 1))
+             * (event_items + 1))
         Globals.EXPERIMENT_FINISH_TIME = experiment_finish_time
         Globals.EXPERIMENT_START = True
         return
