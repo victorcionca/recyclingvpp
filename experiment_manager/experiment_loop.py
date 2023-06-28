@@ -16,10 +16,12 @@ def run_loop():
 
     while dt.now() < Globals.EXPERIMENT_FINISH_TIME:
         Globals.queue_lock.acquire(blocking=True)
-        event_time = Globals.event_queue[0]["time"]
+        
         now_time = datetime.datetime.now()
-        if len(Globals.event_queue) != 0 and event_time <= now_time:
+        if len(Globals.event_queue) != 0 and Globals.event_queue[0]["time"] <= now_time:
             current_item: dict = Globals.event_queue.pop(0)
+            
+            event_time = current_item["time"]
             
             if current_item["event_type"] == EventType.EventTypes.OBJECT_DETECT_START:
                 deadline = current_item["time"] + \
