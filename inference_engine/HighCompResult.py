@@ -37,8 +37,8 @@ class HighCompResult:
             "dnn_id": self.dnn_id,
             "N": self.n,
             "M": self.m,
-            "estimated_start": int((self.estimated_start.timestamp()) * 1000),
-            "estimated_finish": int((self.estimated_finish.timestamp()) * 1000),
+            "start_time": int((self.estimated_start.timestamp()) * 1000),
+            "finish_time": int((self.estimated_finish.timestamp()) * 1000),
             "version": self.version,
             "allocated_host": self.allocated_host,
             "upload_data": self.upload_data.link_act_to_dict()

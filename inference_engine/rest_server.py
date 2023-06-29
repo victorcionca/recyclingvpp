@@ -139,7 +139,7 @@ class RestInterface(BaseHTTPRequestHandler):
 
     def task_allocation_function(self, json_request_body: dict):
         dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
-        dnn_task.generateFromDict(json_request_body["dnn"])
+        dnn_task.generateFromDict(json_request_body)
 
         Globals.work_queue_lock.acquire(blocking=True)
         partition_and_process(dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
