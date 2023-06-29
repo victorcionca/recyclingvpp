@@ -51,7 +51,11 @@ def taskForward(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm
         payload = comm_item.payload.high_comp_result_to_dict()
         host = comm_item.payload.allocated_host
         url = f"http://{host}:{Constants.REST_PORT}{Constants.TASK_FORWARD}"
-        json_obj = json.dumps(payload)
-        with open(Constants.INITIAL_FILE_PATH, "rb") as f:
-            requests.post(url, files={'file': f}, json=json_obj)
+
+        # Create the multipart payload
+        multipart_data = []
+        multipart_data.append(('file', open(Constants.INITIAL_FILE_PATH, 'rb')))
+        multipart_data.append(('payload', (None, json.dumps(payload), 'application/json')))
+
+        requests.post(url, files=multipart_data)
     return
