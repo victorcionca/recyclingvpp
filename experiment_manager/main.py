@@ -52,10 +52,18 @@ def main():
     return
 
 
+'''
+Program arguments
+device task - int   : Indicates which track in the trace file it will use
+Set A or B  - bool  : Boolean value that indicates if the device is offset in processing
+test mode   - bool  : Boolean value for testing
+eg. python3 main.py 0 True False 
+'''
 if __name__ == "__main__":
-    test_mode = len(sys.argv) < 2
-    device_task = int(sys.argv[1]) if not test_mode else 0
-    Globals.SET_A_OR_B = bool(sys.argv[2]) if not test_mode else False
+    is_args = len(sys.argv) == 1
+    device_task = int(sys.argv[1]) if not is_args else 0
+    Globals.SET_A_OR_B = bool(sys.argv[2]) if not is_args else False
+    test_mode = bool(sys.argv[3]) if not is_args else True
     trace_file_path = "/home/pi/recyclingvpp/experiment_manager/test_trace_file.json" if test_mode else "/home/pi/recyclingvpp/experiment_manager/trace_file.json"
     trace_file = open(trace_file_path, "r")
     trace_data = json.load(trace_file)
