@@ -24,9 +24,8 @@ def work_loop():
         free_cores = []
 
         for core, task_id in Globals.core_map.items():
-            if task_id == -1:
+            if task_id == "" and len(free_cores) < Globals.work_waiting_queue[0]["cores"]:
                 free_cores.append(core)
-                break
 
         if Globals.work_waiting_queue[0]["start_time"] <= dt.now():
             work_item = Globals.work_waiting_queue.pop(0)
