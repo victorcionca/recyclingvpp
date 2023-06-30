@@ -77,8 +77,7 @@ class RestInterface(BaseHTTPRequestHandler):
             start_time = from_ms_since_epoch(str(json_request["start_time"]))
 
         if Globals.SET_A_OR_B:
-            start_time = start_time + \
-                datetime.timedelta(seconds=Constants.FRAME_RATE / 2)
+            start_time = start_time + datetime.timedelta(seconds=Constants.FRAME_RATE / 2)
 
         event_items = len(Globals.trace_list)
         Globals.queue_lock.acquire(blocking=True)
