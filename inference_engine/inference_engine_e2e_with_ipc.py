@@ -30,7 +30,7 @@ import threading
 import Globals
 
 # TODO - the following must be configured
-model_folder = "/home/pi/recyclingvpp/models/vgg16_trashnet_conv_blocks/with_maxpooling/"
+model_folder = "/home/pi/recyclingvpp/models/"
 model_filename = "vgg16_conv_block_{block_idx}.tflite"
 maxpool_filename = "vgg16_maxpool_{block_idx}.tflite"
 from time import sleep, time
