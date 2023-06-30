@@ -79,7 +79,9 @@ class RestInterface(BaseHTTPRequestHandler):
                 function = halt_endpoint
 
             if callable(function):
-                 Thread(target=function, args=(json_request))
+                 x = Thread(target=function, args=(json_request))
+                 x.start()
+
 
             response_code = 200
 
