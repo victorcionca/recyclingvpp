@@ -35,10 +35,6 @@ class RestInterface(BaseHTTPRequestHandler):
         request_body = self.rfile.read(int(self.headers['Content-Length']))
 
         response_json = ""
-        response_code = 200
-
-        self.send_response(response_code)
-        self.end_headers()
 
         try:
             json_request = {}
@@ -84,6 +80,11 @@ class RestInterface(BaseHTTPRequestHandler):
 
             if callable(function):
                  Thread(target=function, args=(json_request))
+
+            response_code = 200
+
+            self.send_response(response_code)
+            self.end_headers()
 
         except json.JSONDecodeError:
             print(f"Received request was not json: {request_str}")
