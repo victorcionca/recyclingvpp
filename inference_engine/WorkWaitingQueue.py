@@ -52,6 +52,7 @@ def start_PartitionProcess(work_item, free_cores):
         "M": work_item["M"], 
         "cores": free_cores, 
         "TaskID": work_item["TaskID"]})
+    Globals.thread_holder[work_item["TaskID"]].start()
     Globals.work_queue_lock.release()
     
 

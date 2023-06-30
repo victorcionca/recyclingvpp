@@ -479,7 +479,7 @@ if __name__ == '__main__':
             if c == 0:
                 available_cores.append(cidx)
         if len(available_cores) == 0:
-            response = response_queue.get() # Wait for a request to finish processing
+            response = Globals.results_queue.get() # Wait for a request to finish processing
             print(f"{response['TaskID']} completed")
             for cidx,c in enumerate(cores):
                 if c == response['TaskID']:
