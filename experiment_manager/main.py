@@ -60,10 +60,9 @@ test mode   - bool  : Boolean value for testing
 eg. python3 main.py 0 True False 
 '''
 if __name__ == "__main__":
-    is_args = len(sys.argv) == 1
-    device_task = int(sys.argv[1]) if not is_args else 0
-    Globals.SET_A_OR_B = bool(sys.argv[2]) if not is_args else False
-    test_mode = bool(sys.argv[3]) if not is_args else True
+    device_task = int(sys.argv[1]) if len(sys.argv) != 1 else 0
+    Globals.SET_A_OR_B = bool(sys.argv[2]) if len(sys.argv) != 1 else False
+    test_mode = bool(sys.argv[3]) if len(sys.argv) != 1 else True
     trace_file_path = "/home/pi/recyclingvpp/experiment_manager/test_trace_file.json" if test_mode else "/home/pi/recyclingvpp/experiment_manager/trace_file.json"
     trace_file = open(trace_file_path, "r")
     trace_data = json.load(trace_file)
