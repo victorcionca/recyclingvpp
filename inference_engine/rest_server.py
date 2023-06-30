@@ -13,6 +13,7 @@ import OutboundCommTypes
 import HighCompResult
 import WorkWaitingQueue
 from datetime import datetime as dt
+from threading import Thread
 
 hostName = "localhost"
 
@@ -73,14 +74,16 @@ class RestInterface(BaseHTTPRequestHandler):
             else:
                 json_request = json.loads(request_body)
 
+            function = None
             if self.path == Constants.TASK_ALLOCATION:
-                self.general_allocate_and_forward_function(
-                    json_request_body=json_request)
+                function = general_allocate_and_forward_function
             elif self.path == Constants.TASK_FORWARD:
-                self.task_allocation_function(json_request_body=json_request)
+                function = task_allocation_function
             elif self.path == Constants.HALT_ENDPOINT:
-                self.halt_endpoint(json_request_body=json_request)
+                function = halt_endpoint
 
+            if callable(function):
+                 Thread(target=function, args=(json_request))
 
         except json.JSONDecodeError:
             print(f"Received request was not json: {request_str}")
@@ -88,63 +91,63 @@ class RestInterface(BaseHTTPRequestHandler):
             return
 
     
-    def halt_endpoint(self, json_request_body: dict):
-        dnn_id = json_request_body["dnn_id"]
-        version = int(json_request_body["version"])
+def halt_endpoint(json_request_body: dict):
+    dnn_id = json_request_body["dnn_id"]
+    version = int(json_request_body["version"])
 
+    Globals.work_queue_lock.acquire(blocking=True)
+
+    if dnn_id in Globals.dnn_hold_dict.keys():
+        dnn = Globals.dnn_hold_dict[dnn_id]
+        if dnn.version == version:
+            if dnn_id in Globals.thread_holder.keys():
+                process_thread = Globals.thread_holder[dnn_id]
+                process_thread.halt()
+
+                for i in range(0, len(Globals.core_map.keys())):
+                    if Globals.core_map[i] == dnn_id:
+                        Globals.core_map[i] = ""
+
+                Globals.core_usage = Globals.core_usage - (dnn.n * dnn.m)
+                
+                del Globals.thread_holder[dnn_id]
+            del Globals.dnn_hold_dict[dnn_id]
+    
+    if dnn_id not in Globals.halt_list.keys():
+        Globals.halt_list[dnn_id] = []
+    
+    if version not in Globals.halt_list[dnn_id]:
+        Globals.halt_list[dnn_id].append(version)
+
+    Globals.work_queue_lock.release()
+    return
+
+
+def general_allocate_and_forward_function(json_request_body: dict):
+    dnn_task = HighCompResult.HighCompResult()
+    dnn_task.generateFromDict(json_request_body)
+    if dnn_task.allocated_host != "self":
         Globals.work_queue_lock.acquire(blocking=True)
+        comm_item = OutboundComm.OutboundComm(
+            comm_time=dnn_task.upload_data.start_fin_time[0], comm_type=OutboundCommTypes.OutboundCommType.TASK_FORWARD, payload=dnn_task)
 
-        if dnn_id in Globals.dnn_hold_dict.keys():
-            dnn = Globals.dnn_hold_dict[dnn_id]
-            if dnn.version == version:
-                if dnn_id in Globals.thread_holder.keys():
-                    process_thread = Globals.thread_holder[dnn_id]
-                    process_thread.halt()
-
-                    for i in range(0, len(Globals.core_map.keys())):
-                        if Globals.core_map[i] == dnn_id:
-                            Globals.core_map[i] = ""
-
-                    Globals.core_usage = Globals.core_usage - (dnn.n * dnn.m)
-                    
-                    del Globals.thread_holder[dnn_id]
-                del Globals.dnn_hold_dict[dnn_id]
-        
-        if dnn_id not in Globals.halt_list.keys():
-            Globals.halt_list[dnn_id] = []
-        
-        if version not in Globals.halt_list[dnn_id]:
-            Globals.halt_list[dnn_id].append(version)
-
+        OutboundComms.add_task_to_queue(comm_item=comm_item)
         Globals.work_queue_lock.release()
-        return
 
-
-    def general_allocate_and_forward_function(self, json_request_body: dict):
-        dnn_task = HighCompResult.HighCompResult()
-        dnn_task.generateFromDict(json_request_body)
-        if dnn_task.allocated_host != "self":
-            Globals.work_queue_lock.acquire(blocking=True)
-            comm_item = OutboundComm.OutboundComm(
-                comm_time=dnn_task.upload_data.start_fin_time[0], comm_type=OutboundCommTypes.OutboundCommType.TASK_FORWARD, payload=dnn_task)
-
-            OutboundComms.add_task_to_queue(comm_item=comm_item)
-            Globals.work_queue_lock.release()
-
-        else:
-            Globals.work_queue_lock.acquire(blocking=True)
-            partition_and_process(
-                dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
-            Globals.work_queue_lock.release()
-
-    def task_allocation_function(self, json_request_body: dict):
-        dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
-        dnn_task.generateFromDict(json_request_body)
-
+    else:
         Globals.work_queue_lock.acquire(blocking=True)
-        partition_and_process(dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+        partition_and_process(
+            dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
         Globals.work_queue_lock.release()
-        return
+
+def task_allocation_function(json_request_body: dict):
+    dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
+    dnn_task.generateFromDict(json_request_body)
+
+    Globals.work_queue_lock.acquire(blocking=True)
+    partition_and_process(dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+    Globals.work_queue_lock.release()
+    return
 
 
 def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_convidx: str, input_data: bytes, input_shape: list):
