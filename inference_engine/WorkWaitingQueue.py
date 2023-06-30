@@ -2,6 +2,7 @@ import Globals
 import Constants
 from datetime import datetime as dt
 import inference_engine_e2e_with_ipc
+from threading import Thread
 
 # work_item = { # type: ignore
 #         "data": data,
@@ -35,18 +36,24 @@ def work_loop():
 
             Globals.core_usage = Globals.core_usage + work_item["cores"]
 
-            # ["data", "shape", "N", "M", "cores", "TaskID"]
-            Globals.thread_holder[work_item["TaskID"]] = inference_engine_e2e_with_ipc.PartitionProcess({
-                "data": work_item["data"], 
-                "shape": work_item["shape"], 
-                "N": work_item["N"], 
-                "M": work_item["M"], 
-                "cores": free_cores, 
-                "TaskID": work_item["TaskID"]})
+            x = Thread(target=start_PartitionProcess, args=(work_item, free_cores))
+            x.start()
 
         Globals.work_queue_lock.release()
     return
 
+def start_PartitionProcess(work_item, free_cores):
+    Globals.work_queue_lock.acquire(blocking=True)
+    # ["data", "shape", "N", "M", "cores", "TaskID"]
+    Globals.thread_holder[work_item["TaskID"]] = inference_engine_e2e_with_ipc.PartitionProcess({
+        "data": work_item["data"], 
+        "shape": work_item["shape"], 
+        "N": work_item["N"], 
+        "M": work_item["M"], 
+        "cores": free_cores, 
+        "TaskID": work_item["TaskID"]})
+    Globals.work_queue_lock.release()
+    
 
 # Assumes that lock has been acquired before accessing
 def add_task(work_item: dict):

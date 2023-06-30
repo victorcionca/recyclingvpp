@@ -79,7 +79,7 @@ class RestInterface(BaseHTTPRequestHandler):
                 function = halt_endpoint
 
             if callable(function):
-                 x = Thread(target=function, args=(json_request))
+                 x = Thread(target=function, args=(json_request,))
                  x.start()
 
 
@@ -94,7 +94,7 @@ class RestInterface(BaseHTTPRequestHandler):
             return
 
     
-def halt_endpoint(json_request_body: dict):
+def halt_endpoint(json_request_body):
     dnn_id = json_request_body["dnn_id"]
     version = int(json_request_body["version"])
 
@@ -126,7 +126,7 @@ def halt_endpoint(json_request_body: dict):
     return
 
 
-def general_allocate_and_forward_function(json_request_body: dict):
+def general_allocate_and_forward_function(json_request_body):
     dnn_task = HighCompResult.HighCompResult()
     dnn_task.generateFromDict(json_request_body)
     if dnn_task.allocated_host != "self":
@@ -143,7 +143,7 @@ def general_allocate_and_forward_function(json_request_body: dict):
             dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
         Globals.work_queue_lock.release()
 
-def task_allocation_function(json_request_body: dict):
+def task_allocation_function(json_request_body):
     dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
     dnn_task.generateFromDict(json_request_body)
 
