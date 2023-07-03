@@ -6,3 +6,4 @@
 result*.json
 .DS_Store
 result*.json
+*/test_trace_file.json
