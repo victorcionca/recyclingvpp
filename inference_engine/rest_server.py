@@ -110,8 +110,6 @@ def halt_endpoint(json_request_body):
                 for i in range(0, len(Globals.core_map.keys())):
                     if Globals.core_map[i] == dnn_id:
                         Globals.core_map[i] = ""
-
-                Globals.core_usage = Globals.core_usage - (dnn.n * dnn.m)
                 
                 del Globals.thread_holder[dnn_id]
             del Globals.dnn_hold_dict[dnn_id]

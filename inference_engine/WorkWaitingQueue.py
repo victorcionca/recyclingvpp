@@ -18,7 +18,7 @@ def work_loop():
     while True:
         Globals.work_queue_lock.acquire(blocking=True)
         
-        if len(Globals.work_waiting_queue) == 0 or Globals.core_usage + Globals.work_waiting_queue[0]["cores"] > Constants.CORE_COUNT:
+        if len(Globals.work_waiting_queue) == 0 or fetch_core_usage() + Globals.work_waiting_queue[0]["cores"] > Constants.CORE_COUNT:
             Globals.work_queue_lock.release()
             continue
 
@@ -33,8 +33,6 @@ def work_loop():
             
             for i in free_cores:
                 Globals.core_map[i] = work_item["TaskID"]
-
-            Globals.core_usage = Globals.core_usage + work_item["cores"]
 
             x = Thread(target=start_PartitionProcess, args=(work_item, free_cores))
             x.start()
@@ -55,6 +53,15 @@ def start_PartitionProcess(work_item, free_cores):
     Globals.thread_holder[work_item["TaskID"]].start()
     Globals.work_queue_lock.release()
     
+
+def fetch_core_usage():
+    core_usage = 0
+    for value in Globals.core_map.values():
+        if value == "":
+            core_usage = core_usage + 1
+    
+    return core_usage
+
 
 # Assumes that lock has been acquired before accessing
 def add_task(work_item: dict):
