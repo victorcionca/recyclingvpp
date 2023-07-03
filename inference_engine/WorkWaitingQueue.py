@@ -1,6 +1,7 @@
 import Globals
 import Constants
 from datetime import datetime as dt
+import logging
 import inference_engine_e2e_with_ipc
 from threading import Thread
 
@@ -41,6 +42,7 @@ def work_loop():
     return
 
 def start_PartitionProcess(work_item, free_cores):
+    logging.info(f"Beginning {work_item['TaskID']}")
     Globals.work_queue_lock.acquire(blocking=True)
     # ["data", "shape", "N", "M", "cores", "TaskID"]
     Globals.thread_holder[work_item["TaskID"]] = inference_engine_e2e_with_ipc.PartitionProcess({
