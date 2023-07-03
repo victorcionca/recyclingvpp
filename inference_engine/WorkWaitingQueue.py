@@ -35,15 +35,17 @@ def work_loop():
             for i in free_cores:
                 Globals.core_map[i] = work_item["TaskID"]
 
-            x = Thread(target=start_PartitionProcess, args=(work_item, free_cores))
-            x.start()
+            # x = Thread(target=start_PartitionProcess, args=(work_item, free_cores))
+            # x.start()
+            start_PartitionProcess(work_item, free_cores)
 
         Globals.work_queue_lock.release()
     return
 
 def start_PartitionProcess(work_item, free_cores):
     logging.info(f"Beginning {work_item['TaskID']}")
-    Globals.work_queue_lock.acquire(blocking=True)
+    print(f"Beginning {work_item["TaskID"]}")
+    # Globals.work_queue_lock.acquire(blocking=True)
     # ["data", "shape", "N", "M", "cores", "TaskID"]
     Globals.thread_holder[work_item["TaskID"]] = inference_engine_e2e_with_ipc.PartitionProcess({
         "data": work_item["data"], 
@@ -53,7 +55,7 @@ def start_PartitionProcess(work_item, free_cores):
         "cores": free_cores, 
         "TaskID": work_item["TaskID"]})
     Globals.thread_holder[work_item["TaskID"]].start()
-    Globals.work_queue_lock.release()
+    # Globals.work_queue_lock.release()
     
 
 def fetch_core_usage():
