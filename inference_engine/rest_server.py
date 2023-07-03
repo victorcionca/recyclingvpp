@@ -78,10 +78,10 @@ class RestInterface(BaseHTTPRequestHandler):
             elif self.path == Constants.HALT_ENDPOINT:
                 function = halt_endpoint
 
-            if callable(function):
-                 x = Thread(target=function, args=(json_request,))
-                 x.start()
-
+            # if callable(function):
+            #      x = Thread(target=function, args=(json_request,))
+            #      x.start()
+            function(json_request)
 
             response_code = 200
 
