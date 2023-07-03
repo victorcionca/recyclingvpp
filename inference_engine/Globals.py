@@ -43,5 +43,3 @@ core_map: Dict[int, str] = {
 # Need to hold threads so that I can halt later if need be
 # Key is DNN ID, value is the processor
 thread_holder: Dict[str, inference_engine_e2e_with_ipc.PartitionProcess] = dict()
-
-core_usage = 0

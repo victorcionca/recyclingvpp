@@ -13,17 +13,11 @@ def ResultsQueueLoop():
         
         task_id: str = result_obj["TaskID"]
 
-        Globals.work_queue_lock.acquire()
-        core_map_used = False
+        Globals.work_queue_lock.acquire(blocking=True)
+
         for i in range(0, Constants.CORE_COUNT):
             if Globals.core_map[i] == task_id:
                 Globals.core_map[i] = ""
-                core_map_used = True
-
-        dnn_core_usage = (Globals.dnn_hold_dict[task_id].m * Globals.dnn_hold_dict[task_id].n)
-
-        if core_map_used:
-            Globals.core_usage = Globals.core_usage - dnn_core_usage
         
         version = -1
         if task_id in Globals.dnn_hold_dict.keys():
