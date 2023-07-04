@@ -3,6 +3,7 @@ import Constants
 from datetime import datetime as dt
 import inference_engine_e2e_with_ipc
 from threading import Thread
+import rest_functions
 
 # work_item = { # type: ignore
 #         "data": data,
@@ -17,7 +18,8 @@ from threading import Thread
 def work_loop():
     while True:
         Globals.work_queue_lock.acquire(blocking=True)
-        
+        worker_watcher()
+
         if len(Globals.work_waiting_queue) == 0 or fetch_core_usage() + Globals.work_waiting_queue[0]["cores"] > Constants.CORE_COUNT:
             Globals.work_queue_lock.release()
             continue
@@ -72,3 +74,15 @@ def fetch_core_usage():
 def add_task(work_item: dict):
     Globals.work_waiting_queue.append(work_item)
     Globals.work_waiting_queue.sort(key=lambda x: x["start_time"])
+
+def worker_watcher():
+    task_id_list = set([value for value in Globals.core_map.values() if value != ""])
+
+    for dnn_id in task_id_list:
+        dnn = Globals.dnn_hold_dict[dnn_id]
+        if dnn.estimated_finish < dt.now():
+            rest_functions.halt_endpoint({"dnn_id": dnn_id, "version": dnn.version})
+
+    #Need to send an outbound comm informing controller task violated deadline
+    
+    return
