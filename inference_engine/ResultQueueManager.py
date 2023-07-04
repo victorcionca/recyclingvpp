@@ -33,7 +33,7 @@ def ResultsQueueLoop():
             "finish_time": int(finish_time.timestamp() * 1000)
         }
         if version != -1:
-            logging.info(f"TASK: {task_id} - {finish_time}")
+            print(f"TASK FIN: \t{task_id} - {finish_time}")
             state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(), comm_type=OutboundCommTypes.OutboundCommType.STATE_UPDATE, payload=payload, dnn_id=task_id, version=version)
             OutboundComms.add_task_to_queue(state_update_comm)
 

@@ -27,16 +27,16 @@ def start_ResultsQueueManager(logging):
 
 
 def ThreadStart(logging, function, thread_name):
-    logging.info(f"Main    : before creating {thread_name} thread")
+    print(f"Main    : before creating {thread_name} thread")
     x = threading.Thread(target=function)
-    logging.info(f"Main    : before running {thread_name} thread")
+    print(f"Main    : before running {thread_name} thread")
     x.start()
-    logging.info(f"Main    : running {thread_name} thread")
+    print(f"Main    : running {thread_name} thread")
     return
 
 
 def hello(logging):
-    logging.info("Main    : Registering with controller")
+    print("Main    : Registering with controller")
     host_ip = Constants.CONTROLLER_HOST_NAME
     endpoint = f'http://{host_ip}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_REGISTER_DEVICE}'
     print(f"endpoint: {endpoint}")
@@ -77,6 +77,7 @@ def sync_timestamp():
 def main():
     Constants.CLIENT_ADDRESS = sys.argv[1]
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
     sync_timestamp()
     start_IPERF(logging)
     start_REST(logging)

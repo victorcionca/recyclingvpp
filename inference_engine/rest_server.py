@@ -187,13 +187,12 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
 
 
 def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):
-    logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
-    logging.info('REST: Starting httpd...\n')
+    print('REST: Starting httpd...\n')
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
     httpd.server_close()
-    logging.info('REST: Stopping httpd...\n')
+    print('REST: Stopping httpd...\n')
