@@ -4,6 +4,9 @@ from datetime import datetime as dt
 import inference_engine_e2e_with_ipc
 from threading import Thread
 import rest_functions
+import OutboundComm
+import OutboundComms
+import OutboundCommTypes
 
 # work_item = { # type: ignore
 #         "data": data,
@@ -82,6 +85,9 @@ def worker_watcher():
         dnn = Globals.dnn_hold_dict[dnn_id]
         if dnn.estimated_finish < dt.now():
             rest_functions.halt_endpoint({"dnn_id": dnn_id, "version": dnn.version})
+
+            state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(), comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE, payload={"dnn_id": dnn_id}, dnn_id=dnn_id, version=-10)
+            OutboundComms.add_task_to_queue(state_update_comm)
 
     #Need to send an outbound comm informing controller task violated deadline
     

@@ -22,6 +22,8 @@ def outbound_comm_loop():
                 function = taskForward
             elif comm_item.comm_type == OutboundCommTypes.OutboundCommType.STATE_UPDATE:
                 function = stateUpdate
+            elif comm_item.comm_type == OutboundCommTypes.OutboundCommType.STATE_UPDATE:
+                function = deadlineViolated
             threading.Thread(target=function, kwargs={'comm_item': comm_item}).start()
 
         Globals.work_queue_lock.release()
@@ -35,6 +37,14 @@ def add_task_to_queue(comm_item: OutboundComm.OutboundComm = OutboundComm.Outbou
         Globals.net_outbound_list.append(comm_item)
         Globals.net_outbound_list.sort(key=lambda x: x.comm_time)
 
+    return
+
+
+def deadlineViolated(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm()):
+    if isinstance(comm_item.payload, dict):
+        payload: dict = comm_item.payload
+        url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_VIOLATED_DEADLINE}"
+        requests.post(url, json=payload)
     return
 
 
