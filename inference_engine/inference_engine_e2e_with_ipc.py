@@ -484,7 +484,7 @@ if __name__ == '__main__':
             response = Globals.results_queue.get() # Wait for a request to finish processing
             total_time = time() - start_times[response['TaskID']]
             del start_times[response['TaskID']]
-            print(f"{response['TaskID']} completed")
+            print(f"{response['TaskID']} completed, Time: {total_time}")
             for cidx,c in enumerate(cores):
                 if c == response['TaskID']:
                     available_cores.append(cidx)
