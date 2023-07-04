@@ -470,6 +470,8 @@ class InferenceHandler(Process):
 if __name__ == '__main__':
     # create the inference handlers for each core
     os.sched_setaffinity(0, [3])
+    # Keep track of start times
+    start_times = {}
     # Parallel experiment
     cores = [0 for _ in range(4)] # This stores tasks allocated to cores
     while True:
@@ -480,6 +482,8 @@ if __name__ == '__main__':
                 available_cores.append(cidx)
         if len(available_cores) == 0:
             response = Globals.results_queue.get() # Wait for a request to finish processing
+            total_time = time() - start_times[response['TaskID']]
+            del start_times[response['TaskID']]
             print(f"{response['TaskID']} completed")
             for cidx,c in enumerate(cores):
                 if c == response['TaskID']:
@@ -498,6 +502,8 @@ if __name__ == '__main__':
         # Create the partition and process thread
         print(f"Processing {task_id} on {available_cores}")
         proc_thread = PartitionProcess(img_resp)
+        # Record the start time
+        start_times[task_id] = time()
         # Dispatch the thread
         proc_thread.start()
         # Take a little break
