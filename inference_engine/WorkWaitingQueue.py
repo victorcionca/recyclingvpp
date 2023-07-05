@@ -22,14 +22,15 @@ def work_loop():
     while True:
         Globals.work_queue_lock.acquire(blocking=True)
         worker_watcher()
-        print(f"WORK_WAIT_SIZE: \t {len(Globals.work_waiting_queue)}")
-        print(f"HOLD_DICT_SIZE: \t {len(Globals.dnn_hold_dict.keys())}")
-        print(f"NET_QUEUE_SIZE: \t {len(Globals.net_outbound_list)}")
-        print(f"PROCESSOR_SIZE: \t {len(Globals.thread_holder.keys())}")
 
         if len(Globals.work_waiting_queue) == 0 or fetch_core_usage() + Globals.work_waiting_queue[0]["cores"] > Constants.CORE_COUNT:
             Globals.work_queue_lock.release()
             continue
+        
+        print(f"WORK_WAIT_SIZE: \t {len(Globals.work_waiting_queue)}")
+        print(f"HOLD_DICT_SIZE: \t {len(Globals.dnn_hold_dict.keys())}")
+        print(f"NET_QUEUE_SIZE: \t {len(Globals.net_outbound_list)}")
+        print(f"PROCESSOR_SIZE: \t {len(Globals.thread_holder.keys())}")
 
         free_cores = []
 
