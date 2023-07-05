@@ -10,21 +10,21 @@ import WorkWaitingQueue
 
 def halt_endpoint(json_request_body):
     dnn_id = json_request_body["dnn_id"]
-    version = int(json_request_body["version"])
+    # version = int(json_request_body["version"])
 
     if dnn_id in Globals.dnn_hold_dict.keys():
         dnn = Globals.dnn_hold_dict[dnn_id]
-        if dnn.version == version:
-            if dnn_id in Globals.thread_holder.keys():
-                process_thread = Globals.thread_holder[dnn_id]
-                process_thread.halt()
+        # if dnn.version == version:
+        if dnn_id in Globals.thread_holder.keys():
+            process_thread = Globals.thread_holder[dnn_id]
+            process_thread.halt()
 
-                for i in range(0, len(Globals.core_map.keys())):
-                    if Globals.core_map[i] == dnn_id:
-                        Globals.core_map[i] = ""
-                
-                del Globals.thread_holder[dnn_id]
-            del Globals.dnn_hold_dict[dnn_id]
+            for i in range(0, len(Globals.core_map.keys())):
+                if Globals.core_map[i] == dnn_id:
+                    Globals.core_map[i] = ""
+            
+            del Globals.thread_holder[dnn_id]
+        del Globals.dnn_hold_dict[dnn_id]
     return
 
 

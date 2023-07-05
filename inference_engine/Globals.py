@@ -8,9 +8,6 @@ import HighCompResult
 
 work_queue_lock = threading.Lock()
 
-# Queue for RESTInterface and GRPC Server to append tasks to work queue
-work_queue = queue.Queue()
-
 # Results queue
 results_queue = Queue()
 
