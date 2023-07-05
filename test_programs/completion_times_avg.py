@@ -25,7 +25,9 @@ if __name__ == "__main__":
         "1x2_mean": one_by_two_times_avg,
         "1x2_stdev": one_by_two_times_stdev,
         "2x2_mean": two_by_two_times_avg,
-        "2x2_stdev": two_by_two_times_stdev
+        "2x2_stdev": two_by_two_times_stdev,
+        "1x2_proc": one_by_two_times_avg + one_by_two_times_stdev,
+        "2x2_proc": two_by_two_times_avg + two_by_two_times_stdev
     }
 
     file = open("./completion_times_avg.json", "w")
