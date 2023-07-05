@@ -25,13 +25,6 @@ def halt_endpoint(json_request_body):
                 
                 del Globals.thread_holder[dnn_id]
             del Globals.dnn_hold_dict[dnn_id]
-    
-    if dnn_id not in Globals.halt_list.keys():
-        Globals.halt_list[dnn_id] = []
-    
-    if version not in Globals.halt_list[dnn_id]:
-        Globals.halt_list[dnn_id].append(version)
-
     return
 
 
@@ -84,7 +77,7 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
         "TaskID": dnn_task.dnn_id
     }
 
-    if not DataProcessing.check_if_dnn_halted(dnn_id=dnn_task.dnn_id, dnn_version=dnn_task.version):
-        Globals.dnn_hold_dict[dnn_task.dnn_id] = dnn_task
+    # if not DataProcessing.check_if_dnn_halted(dnn_id=dnn_task.dnn_id, dnn_version=dnn_task.version):
+    Globals.dnn_hold_dict[dnn_task.dnn_id] = dnn_task
 
-        WorkWaitingQueue.add_task(work_item=work_item)
+    WorkWaitingQueue.add_task(work_item=work_item)

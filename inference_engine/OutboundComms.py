@@ -33,10 +33,9 @@ def outbound_comm_loop():
 # Assumed that lock has been acquired prior to accessing queue
 def add_task_to_queue(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm()):
 
-    if not DataProcessing.check_if_dnn_halted(dnn_id=comm_item.dnn_id, dnn_version=comm_item.version):
-        Globals.net_outbound_list.append(comm_item)
-        Globals.net_outbound_list.sort(key=lambda x: x.comm_time)
-
+    # if not DataProcessing.check_if_dnn_halted(dnn_id=comm_item.dnn_id, dnn_version=comm_item.version):
+    Globals.net_outbound_list.append(comm_item)
+    Globals.net_outbound_list.sort(key=lambda x: x.comm_time)
     return
 
 

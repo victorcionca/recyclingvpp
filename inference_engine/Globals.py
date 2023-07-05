@@ -26,9 +26,6 @@ dnn_hold_dict: Dict[str, HighCompResult.HighCompResult] = {}
 # as scheduled
 work_waiting_queue: List[Dict] = []
 
-# This list holds the version items for a DNN to ignore
-halt_list: Dict[str, List[int]] = {}
-
 host_name = ""
 
 # Used to hold our map of cores in use
