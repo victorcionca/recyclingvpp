@@ -85,7 +85,8 @@ def worker_watcher():
         dnn = Globals.dnn_hold_dict[dnn_id]
         if dnn.estimated_finish < dt.now():
             rest_functions.halt_endpoint({"dnn_id": dnn_id, "version": dnn.version})
-
+            print(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
+            print(f"TASK EXCPT: \t{dnn_id} - {dnn.estimated_finish}")
             state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(), comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE, payload={"dnn_id": dnn_id}, dnn_id=dnn_id, version=-10)
             OutboundComms.add_task_to_queue(state_update_comm)
 

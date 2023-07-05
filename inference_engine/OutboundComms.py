@@ -22,7 +22,7 @@ def outbound_comm_loop():
                 function = taskForward
             elif comm_item.comm_type == OutboundCommTypes.OutboundCommType.STATE_UPDATE:
                 function = stateUpdate
-            elif comm_item.comm_type == OutboundCommTypes.OutboundCommType.STATE_UPDATE:
+            elif comm_item.comm_type == OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE:
                 function = deadlineViolated
             threading.Thread(target=function, kwargs={'comm_item': comm_item}).start()
 

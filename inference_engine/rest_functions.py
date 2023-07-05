@@ -32,7 +32,6 @@ def halt_endpoint(json_request_body):
     if version not in Globals.halt_list[dnn_id]:
         Globals.halt_list[dnn_id].append(version)
 
-    Globals.work_queue_lock.release()
     return
 
 
@@ -48,7 +47,6 @@ def general_allocate_and_forward_function(json_request_body):
     else:
         partition_and_process(
             dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
-        Globals.work_queue_lock.release()
 
 def task_allocation_function(json_request_body):
     dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
