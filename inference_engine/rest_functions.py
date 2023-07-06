@@ -52,25 +52,9 @@ def task_allocation_function(json_request_body):
 def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_convidx: str, input_data: bytes, input_shape: list):
     load_data: dict = {}
 
-    data = input_data
-    shape = input_shape
-    
-    if len(input_shape) == 0:
-        load_result = inference_engine_e2e_with_ipc.LoadImage(None, dnn_task.dnn_id)
-
-        if isinstance(load_result, dict):
-            load_data = load_result
-        else:
-            return
-        
-        data = load_result["data"]
-        shape = load_result["shape"]
-
     partition_data = {}
     work_item = { # type: ignore
-        "data": data,
         "start_time": dnn_task.estimated_start,
-        "shape": shape,
         "N": dnn_task.n,
         "M": dnn_task.m,
         "cores": dnn_task.n * dnn_task.m,

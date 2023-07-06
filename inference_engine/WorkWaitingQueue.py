@@ -52,12 +52,16 @@ def work_loop():
     return
 
 def start_PartitionProcess(work_item, free_cores):
+    load_result = inference_engine_e2e_with_ipc.LoadImage(None, work_item["TaskID"])
+    data = load_result["data"]
+    shape = load_result["shape"]    
+
     print(f"TASK CREATE: \t{work_item['TaskID']} - {dt.now()}")
     # Globals.work_queue_lock.acquire(blocking=True)
     # ["data", "shape", "N", "M", "cores", "TaskID"]
     x = inference_engine_e2e_with_ipc.PartitionProcess({
-        "data": work_item["data"], 
-        "shape": work_item["shape"], 
+        "data": data, 
+        "shape": shape, 
         "N": work_item["N"], 
         "M": work_item["M"], 
         "cores": free_cores, 
