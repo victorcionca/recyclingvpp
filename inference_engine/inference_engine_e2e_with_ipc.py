@@ -249,7 +249,10 @@ class PartitionProcess(threading.Thread):
                     if len(tile_resp_bytes) == 0: continue
                     logging.info(f"{time()}: Received tile response {len(tile_resp_bytes)} bytes. Readers: {len(readers)}")
                     # TODO filter task ID
-                    tile_resp.append(pickle.loads(tile_resp_bytes))
+                    try:
+                        tile_resp.append(pickle.loads(tile_resp_bytes))
+                    except:
+                        print("Unpickling error occurred")
                     readers.remove(r)
             if self.halt_event.is_set():
                 return
