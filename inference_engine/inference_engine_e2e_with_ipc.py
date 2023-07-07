@@ -99,19 +99,17 @@ def LoadImage(request, taskid):
 metadata_list = pickle.load(open(os.path.join(model_folder,
                                         "conv_block_metadata.pickle"), 'rb'))
 
-# Generate the pipes for processing and results
-# Create a pipe for each core
-# processing_conns is a list of (r, w) pipes
-processing_conns = [Pipe() for _ in range(4)]
-results_conns = [Pipe() for _ in range(4)]
-
 # For experiments
 #request_lock = threading.Lock()
 response_queue = Queue()
 
 
 class PartitionProcess(threading.Thread):
-
+    # Generate the pipes for processing and results
+    # Create a pipe for each core
+    # processing_conns is a list of (r, w) pipes
+    processing_conns = None
+    results_conns = None
     def __init__(self, request):
         """
         Creates a Partition and Process manager to process an incoming
@@ -131,15 +129,18 @@ class PartitionProcess(threading.Thread):
         self.partN = request["N"]
         self.partM = request["M"]
         self.taskid = request["TaskID"]
+
+        self.processing_conns = {core: Pipe() for core in request["cores"]}
+        self.results_conns = {core: Pipe() for core in request["cores"]}
         # Setup the inference processors on the required cores
         self.handlers = []
         self.handler_pipes = []
         self.cores = request['cores']
         for idx, core in enumerate(request["cores"]):
-            handler = InferenceHandler(core, self.partN*self.partM, idx)
+            handler = InferenceHandler(core, self.partN*self.partM, idx, self.processing_conns[core], self.results_conns[core])
             handler.start()
             self.handlers.append(handler)
-            self.handler_pipes.append(results_conns[core])
+            self.handler_pipes.append(self.results_conns[core])
         self.halt_event = threading.Event()
 
     def halt(self):
@@ -237,7 +238,7 @@ class PartitionProcess(threading.Thread):
                 # This is equal to num_conv_layers*
                 # Feed the tiles into the processing queue of the proper core
                 logging.info(f"{time()}: Submit tile {idx} to core")
-                processing_conns[self.cores[idx]][1].send_bytes(pickle.dumps(tile_req))
+                self.processing_conns[self.cores[idx]][1].send_bytes(pickle.dumps(tile_req))
             # Wait for all the tiles to be processed
             tile_resp = []
             readers = [r for (r,w) in self.handler_pipes]
@@ -296,7 +297,11 @@ class InferenceHandler(Process):
     them and put the results into the results queue.
     """
 
-    def __init__(self, core, num_tiles, tile_index):
+    processing_conn = None
+    result_conn = None
+    
+
+    def __init__(self, core, num_tiles, tile_index, processing_pipe, result_pipe):
         """
         Inference processor, processes a single partition end-to-end.
 
@@ -306,6 +311,8 @@ class InferenceHandler(Process):
         tile_index  -- which tile is handled by this processor.
         """
         super().__init__()
+        self.processing_conn = processing_pipe
+        self.result_conn = result_pipe
         self.running = False
         self.core = core
         self.num_tiles = num_tiles
@@ -451,7 +458,7 @@ class InferenceHandler(Process):
         response["tile_details"] = {'Nidx': tile['Nidx'], 'Midx': tile['Midx']}
         # Insert request into the results queue
         logging.info(f"{[self.core]} {time()}: Put result {output.shape}")
-        results_conns[self.core][1].send_bytes(pickle.dumps(response))
+        self.result_conn[1].send_bytes(pickle.dumps(response))
 
     def run(self):
         # Pin to the requested core
@@ -461,7 +468,7 @@ class InferenceHandler(Process):
         self.running = True
         while self.running:
             # Wait for a processing task
-            proc_task = processing_conns[self.core][0].recv_bytes()
+            proc_task = self.processing_conn[0].recv_bytes()
             if len(proc_task) == 0: continue
             logging.info(f"{[self.core]} {time()}: received proc task {len(proc_task)} bytes")
             self.process_tile(pickle.loads(proc_task))
