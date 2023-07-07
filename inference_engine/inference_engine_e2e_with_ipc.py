@@ -284,6 +284,7 @@ class PartitionProcess(threading.Thread):
         # Destroy the processors
         for handler in self.handlers:
             handler.kill()
+            handler.join()
         # Indicate that we have finished processing a request
         Globals.results_queue.put({"TaskID": self.taskid})
 
