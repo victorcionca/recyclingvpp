@@ -91,7 +91,7 @@ def worker_watcher():
     task_id_list = set([value for value in Globals.core_map.values() if value != ""])
 
     for dnn_id in task_id_list:
-        if dnn_id in Globals.dnn_hold_dict:
+        if dnn_id in Globals.dnn_hold_dict.keys():
             dnn = Globals.dnn_hold_dict[dnn_id]
             if dnn.estimated_finish < dt.now():
                 rest_functions.halt_endpoint({"dnn_id": dnn_id, "version": dnn.version})
