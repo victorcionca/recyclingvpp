@@ -3,7 +3,11 @@
         "total_low_comp_count": 4320,
         "low_comp_success_count": 3458,
         "low_comp_preempt_success_count": 0,
-        "low_comp_fail_count": 862
+        "low_comp_fail_count": 862,
+        "avg_low_comp_allocation_times_preemp": 0,
+        "avg_low_comp_allocation_times_no_preemp": 0.46529786003470214,
+        "stdev_low_comp_allocation_times_no_preemp": 0.7054348591667927,
+        "stdev_low_comp_allocation_times_preemp": 0.0
     },
     "high_comp_results": {
         "total_high_comp_count": 6961,
@@ -12,6 +16,20 @@
         "high_comp_prempt_fail": 0,
         "high_comp_prempt_success": 0,
         "high_comp_finish": 4161,
-        "high_comp_violated": 1959
+        "high_comp_violated": 1959,
+        "avg_high_comp_allocation_times_initial": 141.08218954248366,
+        "stdev_high_comp_allocation_times_initial": 613.0035535801212,
+        "avg_high_comp_allocation_times_reallo": 0,
+        "stdev_high_comp_allocation_times_reallo": 0.0,
+        "high_comp_1x2_preemp": 0,
+        "high_comp_2x2_preemp": 0
+    },
+    "general_stats": {
+        "frames_generated": 4320,
+        "frames_completed": 1939,
+        "average_high_comp_completed": 0.6435168525848627,
+        "stdev_high_comp_completed": 0.3853789939116422,
+        "offloaded_tasks": 6120,
+        "completed_offloaded_tasks": 4161
     }
 }

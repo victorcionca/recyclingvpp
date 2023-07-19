@@ -3,15 +3,33 @@
         "total_low_comp_count": 4320,
         "low_comp_success_count": 4320,
         "low_comp_preempt_success_count": 826,
-        "low_comp_fail_count": 0
+        "low_comp_fail_count": 0,
+        "avg_low_comp_allocation_times_preemp": 365.5956416464891,
+        "avg_low_comp_allocation_times_no_preemp": 7.919576416714367,
+        "stdev_low_comp_allocation_times_no_preemp": 48.483242390754064,
+        "stdev_low_comp_allocation_times_preemp": 229.70027095750547
     },
     "high_comp_results": {
         "total_high_comp_count": 8640,
-        "high_comp_success_count": 7099,
+        "high_comp_success_count": 7097,
         "high_comp_fail": 1541,
         "high_comp_prempt_fail": 822,
         "high_comp_prempt_success": 4,
         "high_comp_finish": 4131,
-        "high_comp_violated": 2144
+        "high_comp_violated": 2144,
+        "avg_high_comp_allocation_times_initial": 148.0773566295618,
+        "stdev_high_comp_allocation_times_initial": 580.3386061289558,
+        "avg_high_comp_allocation_times_reallo": 271.75,
+        "stdev_high_comp_allocation_times_reallo": 473.61473442732614,
+        "high_comp_1x2_preemp": 65,
+        "high_comp_2x2_preemp": 761
+    },
+    "general_stats": {
+        "frames_generated": 4320,
+        "frames_completed": 2163,
+        "average_high_comp_completed": 0.5434635793535938,
+        "stdev_high_comp_completed": 0.41876076635833764,
+        "offloaded_tasks": 7097,
+        "completed_offloaded_tasks": 4131
     }
 }
