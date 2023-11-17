@@ -1,7 +1,8 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 import json
 import Constants
 import rest_functions
+
 import Globals
 from datetime import datetime as dt
 
@@ -10,12 +11,15 @@ hostName = "localhost"
 
 device_host_list = []
 
-
 class RestInterface(BaseHTTPRequestHandler):
 
     def _set_response(self):
         self.send_response(200)
         self.end_headers()
+
+    def log_message(self, format, *args):
+        # Suppress the default logging
+        pass
 
     def do_POST(self):
         json_request = {}
@@ -24,7 +28,7 @@ class RestInterface(BaseHTTPRequestHandler):
         request_str = self.requestline
         request_body = self.rfile.read(int(self.headers['Content-Length']))
 
-        response_json = ""
+        response_json = ""       
 
         try:
             json_request = {}
@@ -67,6 +71,10 @@ class RestInterface(BaseHTTPRequestHandler):
                 function = rest_functions.task_allocation_function
             elif self.path == Constants.HALT_ENDPOINT:
                 function = rest_functions.halt_endpoint
+            elif self.path == Constants.LOW_CAP:
+                function = rest_functions.lower_capacity
+            elif self.path == Constants.RAISE_CAP:
+                function = rest_functions.increment_capacity
 
             # if callable(function):
             #      x = Thread(target=function, args=(json_request,))
@@ -85,6 +93,21 @@ class RestInterface(BaseHTTPRequestHandler):
             print(f"Received request was not json: {request_str}")
             response_code = 400
             return
+
+    def do_GET(self):
+        if self.path == Constants.GET_IMAGE:
+            image_content = None
+            # Open and read the image file
+            with open(Constants.INITIAL_FILE_PATH, 'rb') as f:
+                image_content = f.read()
+
+            # Set the content type to 'image/jpeg'
+            self.send_response(200)
+            self.send_header('Content-type', 'image/png')
+            self.end_headers()
+
+            # Send the image content
+            self.wfile.write(image_content)
         
 
 def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):

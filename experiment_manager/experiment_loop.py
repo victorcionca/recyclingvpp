@@ -87,6 +87,9 @@ def generate_high_comp_request(deadline: datetime.datetime, dnn_id: int, task_co
         "Content-Type": "application/json",
     }
 
+    url_low_cap = f"http://127.0.0.1:{REST_PORT}{LOW_CAP}"
+    response_low_cap = requests.post(url_low_cap, json={}, headers=headers)
+
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_HIGH_COMP_ALLOCATION}"
     response = requests.post(url, json=data, headers=headers)
     return

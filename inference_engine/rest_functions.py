@@ -1,6 +1,7 @@
+import requests
+
 import Constants
 import Globals
-import inference_engine_e2e_with_ipc
 import DataProcessing
 import OutboundComm
 import OutboundComms
@@ -8,19 +9,21 @@ import OutboundCommTypes
 import HighCompResult
 import WorkWaitingQueue
 
+from datetime import datetime as dt
+
 def halt_endpoint(json_request_body):
     dnn_id = json_request_body["dnn_id"]
-    # version = int(json_request_body["version"])
 
     if dnn_id in Globals.dnn_hold_dict.keys():
         dnn = Globals.dnn_hold_dict[dnn_id]
-        # if dnn.version == version:
+
         if dnn_id in Globals.thread_holder.keys():
             process_thread = Globals.thread_holder[dnn_id]
             process_thread.halt()
 
             for i in range(0, len(Globals.core_map.keys())):
                 if Globals.core_map[i] == dnn_id:
+                    Globals.active_capacity = Globals.active_capacity - 1
                     Globals.core_map[i] = ""
             
             del Globals.thread_holder[dnn_id]
@@ -29,17 +32,33 @@ def halt_endpoint(json_request_body):
 
 
 def general_allocate_and_forward_function(json_request_body):
+
+    Globals.work_request_lock.release()
+    if not json_request_body["success"]:
+        return
+
     dnn_task = HighCompResult.HighCompResult()
-    dnn_task.generateFromDict(json_request_body)
+    dnn_task.generateFromDict(json_request_body["dnn"])
+
+    print(f"DEADLINE: {dnn_task.estimated_finish}")
+    print(f"CURRENT_TIME: {dt.now()}")
+
+    image_data = None
+    
+
     if dnn_task.allocated_host != "self":
-        comm_item = OutboundComm.OutboundComm(
-            comm_time=dnn_task.upload_data.start_fin_time[0], comm_type=OutboundCommTypes.OutboundCommType.TASK_FORWARD, payload=dnn_task)
+        image_data = requests.get(f"http://{dnn_task.allocated_host}:{Constants.REST_PORT}{Constants.TASK_FORWARD}")
 
-        OutboundComms.add_task_to_queue(comm_item=comm_item)
+    Globals.active_capacity += dnn_task.n * dnn_task.m
 
-    else:
-        partition_and_process(
-            dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+    partition_and_process(
+        dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+    
+def increment_capacity(json_request: dict):
+    Globals.active_capacity += 1
+
+def lower_capacity(json_request: dict):
+    Globals.active_capacity -= 1
 
 def task_allocation_function(json_request_body):
     dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
@@ -58,7 +77,8 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
         "N": dnn_task.n,
         "M": dnn_task.m,
         "cores": dnn_task.n * dnn_task.m,
-        "TaskID": dnn_task.dnn_id
+        "TaskID": dnn_task.dnn_id,
+        "finish_time": dnn_task.estimated_finish
     }
 
     # if not DataProcessing.check_if_dnn_halted(dnn_id=dnn_task.dnn_id, dnn_version=dnn_task.version):

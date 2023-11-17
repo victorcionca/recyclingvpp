@@ -1,5 +1,6 @@
 import iperf3
 import Constants
+import Globals
 
 def run_IperfServer():
     server = iperf3.Server()
@@ -10,3 +11,4 @@ def run_IperfServer():
 
     # while True:
     server.run()
+    Globals.work_request_lock.release()

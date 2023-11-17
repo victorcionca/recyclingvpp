@@ -12,6 +12,7 @@ import os
 from datetime import datetime
 import sys
 import Constants
+import PollingThread
 
 
 def start_REST(logging):
@@ -43,12 +44,6 @@ def hello(logging):
     requests.post(endpoint)
 
 
-def start_inference_engine(logging):
-    inference_handler = inference_engine.InferenceHandler() # type: ignore
-    ThreadStart(logging, inference_handler.run, "Inference Engine")
-    return
-
-
 def startOutboundComms(logging):
     ThreadStart(logging, OutboundComms.outbound_comm_loop,
                 "Outbound Comm Loop")
@@ -56,6 +51,10 @@ def startOutboundComms(logging):
 
 def start_WorkWaitingQueue(logging):
     ThreadStart(logging, WorkWaitingQueue.work_loop, "Work Waiting Queue")
+
+
+def start_WorkStealing(logging):
+    ThreadStart(logging, PollingThread.stealing_loop(), "Work Stealing Poll")
 
 
 def sync_timestamp():
@@ -75,16 +74,17 @@ def sync_timestamp():
 
 
 def main():
+    start_IPERF(logging)
     Constants.CLIENT_ADDRESS = sys.argv[1]
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
     sync_timestamp()
-    start_IPERF(logging)
     start_REST(logging)
     hello(logging)
     start_ResultsQueueManager(logging)
     startOutboundComms(logging)
     start_WorkWaitingQueue(logging)
+    start_WorkStealing(logging)
 
     return
 

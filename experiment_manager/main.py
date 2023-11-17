@@ -11,8 +11,9 @@ import Globals
 import Constants
 import os
 
+
 def start_REST(logging):
-    ThreadStart(logging, experiment_manager.run_server, "REST") # type: ignore # type: ignore
+    ThreadStart(logging, experiment_manager.run_server, "REST")  # type: ignore # type: ignore
 
 
 def start_experiment_loop(logging):
@@ -41,7 +42,8 @@ def sync_timestamp():
     # Set the system time of the current device
     # Note: Setting system time may require elevated privileges (e.g., running as administrator)
     # Consult the platform-specific documentation for setting system time in your environment
-    os.system('sudo date -s "{}"'.format(now))
+    #TODO Make sure to set this back for RPi's
+    # os.system('sudo date -s "{}"'.format(now))
 
 
 def main():
@@ -60,10 +62,12 @@ test mode   - bool  : Boolean value for testing
 eg. python3 main.py 0 True False 
 '''
 if __name__ == "__main__":
+    working_directory = "/Users/jamiecotter/Documents/Work/PhD/recyclingvpp/experiment_manager"
+
     device_task = int(sys.argv[1]) if len(sys.argv) != 1 else 0
     Globals.SET_A_OR_B = sys.argv[2] == "True" if len(sys.argv) != 1 else False
     test_mode = sys.argv[3] == "True" if len(sys.argv) != 1 else True
-    trace_file_path = "/home/pi/recyclingvpp/experiment_manager/test_trace_file.json" if test_mode else "/home/pi/recyclingvpp/experiment_manager/trace_file.json"
+    trace_file_path = f"{working_directory}/test_trace_file.json" if test_mode else f"{working_directory}/trace_file.json"
     trace_file = open(trace_file_path, "r")
     trace_data = json.load(trace_file)
     Globals.trace_list = TraceParser.trace_parser(trace_data, device_task)

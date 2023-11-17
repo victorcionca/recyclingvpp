@@ -17,6 +17,7 @@ def ResultsQueueLoop():
 
         for i in range(0, Constants.CORE_COUNT):
             if Globals.core_map[i] == task_id:
+                Globals.active_capacity = Globals.active_capacity - 1
                 Globals.core_map[i] = ""
         
         version = -1
