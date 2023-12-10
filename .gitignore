@@ -7,3 +7,6 @@ result*.json
 .DS_Store
 result*.json
 */test_trace_file.json
+*.proto
+*pb2.py*
+*grpc.py*
