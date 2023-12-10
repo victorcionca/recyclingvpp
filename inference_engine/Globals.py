@@ -3,13 +3,14 @@ import queue
 from multiprocessing import Queue
 from typing import Dict, List
 import OutboundComm
-# import inference_engine_e2e_with_ipc
+import inference_engine_e2e_with_ipc
 import HighCompResult
 import threading
 
 import InferenceTestObj
 
 work_queue_lock = threading.Lock()
+queue_locker = "N/A"
 
 # Results queue
 results_queue = Queue()
@@ -48,9 +49,9 @@ work_request_lock.acquire()
 
 # Need to hold threads so that I can halt later if need be
 # Key is DNN ID, value is the processor
-# thread_holder_inference: Dict[str, inference_engine_e2e_with_ipc.PartitionProcess] = dict()
+thread_holder_inference: Dict[str, inference_engine_e2e_with_ipc.PartitionProcess] = dict()
 
-thread_holder_testing: Dict[str, InferenceTestObj.InferenceTestObj] = dict()
+# thread_holder_testing: Dict[str, InferenceTestObj.InferenceTestObj] = dict()
 
-thread_holder = thread_holder_testing
+thread_holder = thread_holder_inference
 

@@ -12,8 +12,10 @@ import threading
 
 def outbound_comm_loop():
     while True:
+        # print(f"OutboundComms: Requesting lock, held by {Globals.queue_locker}")
         Globals.work_queue_lock.acquire(blocking=True)
-
+        # print(f"OutboundComms: Acquired lock")
+        Globals.queue_locker = "OutboundComms"
         if len(Globals.net_outbound_list) != 0 and Globals.net_outbound_list[0].comm_time <= dt.now():
             comm_item: OutboundComm.OutboundComm = Globals.net_outbound_list.pop(
                 0)
@@ -25,7 +27,8 @@ def outbound_comm_loop():
             elif comm_item.comm_type == OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE:
                 function = deadlineViolated
             threading.Thread(target=function, kwargs={'comm_item': comm_item}).start()
-
+        # print(f"OutboundComms: Releasing lock")
+        Globals.queue_locker = "N/A"
         Globals.work_queue_lock.release()
     return
 

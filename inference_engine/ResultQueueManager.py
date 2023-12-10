@@ -10,16 +10,27 @@ def ResultsQueueLoop():
     while True:
         result_obj = Globals.results_queue.get(block=True)
         finish_time = dt.now()
+
+        print("RESULT FETCHED")
         
         task_id: str = result_obj["TaskID"]
 
+        print(f"ResultQueueManager: Requesting lock, held by {Globals.queue_locker}")
         Globals.work_queue_lock.acquire(blocking=True)
+        print(f"ResultQueueManager: Acquired lock")
+        Globals.queue_locker = "ResultsQueueManager"
+        decrement_counter = 0
+
+        print(f"ResultsQueueManager: Completed Task: {task_id}")
+        print(f"ResultsQueueManager: CoreMap: {Globals.core_map}")
+        print(f"ResultsQueueManager: Active Core Usage Before: {Globals.active_capacity}")
 
         for i in range(0, Constants.CORE_COUNT):
             if Globals.core_map[i] == task_id:
-                Globals.active_capacity = Globals.active_capacity - 1
+                decrement_counter += 1
                 Globals.core_map[i] = ""
-        
+        Globals.active_capacity = Globals.active_capacity - decrement_counter
+        print(f"ResultsQueueManager: Active Core Usage After: {Globals.active_capacity}")
         version = -1
         if task_id in Globals.dnn_hold_dict.keys():
             version = Globals.dnn_hold_dict[task_id].version
@@ -27,6 +38,9 @@ def ResultsQueueLoop():
             del Globals.dnn_hold_dict[task_id]
             if task_id in Globals.thread_holder.keys():
                 del Globals.thread_holder[task_id]
+
+        print(f"ResultQueueManager: Releasing lock")
+        Globals.queue_locker = "N/A"
         Globals.work_queue_lock.release()
                     
         payload = {

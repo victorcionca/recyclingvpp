@@ -1,9 +1,4 @@
-apt install python3-pip
-apt install ntp
-apt install libopenjp2-7
-apt install libatlas-base-dev
-apt install iperf3
-apt install git
+apt install cmake python3-pip ntp libopenjp2-7 libatlas-base-dev iperf3 git libjpeg-dev zlib1g-dev
 cp /home/pi/recyclingvpp/ntp.conf /etc/
+echo "INSTALL: Copied ntp config"
 sudo su - pi -c "python3 -m pip install -r /home/pi/recyclingvpp/requirements.txt"
-cp "/home/pi/recyclingvpp/ntp.conf" "/etc/"

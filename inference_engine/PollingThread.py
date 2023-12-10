@@ -7,7 +7,7 @@ import requests
 def stealing_loop():
     while True:
         # Do not submit work requests while capacity is unavailable or a request is already in the system.
-        while Globals.active_capacity > Constants.CORE_COUNT / 2 or Globals.work_request_lock.locked():
+        while Globals.active_capacity > 2 or Globals.work_request_lock.locked():
             continue
 
         url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_HIGH_WORK_REQUEST}"

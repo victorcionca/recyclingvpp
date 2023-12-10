@@ -1,12 +1,13 @@
 import Globals
 import Constants
 from datetime import datetime as dt, timedelta
-# import inference_engine_e2e_with_ipc
-import InferenceTestObj
+import inference_engine_e2e_with_ipc
+# import InferenceTestObj
 from threading import Thread
 import rest_functions
 import OutboundComm
 import OutboundComms
+import sys
 import OutboundCommTypes
 
 
@@ -22,11 +23,17 @@ import OutboundCommTypes
 
 def work_loop():
     while True:
+        
+        # print(f"WorkWaitingQueue: Requesting lock, held by {Globals.queue_locker}")
         Globals.work_queue_lock.acquire(blocking=True)
+        # print(f"WorkWaitingQueue: Acquired lock")
+        Globals.queue_locker = "WorkWaitingQueue"
         worker_watcher()
 
         if len(Globals.work_waiting_queue) == 0 or fetch_core_usage() + Globals.work_waiting_queue[0][
             "cores"] > Constants.CORE_COUNT:
+            # print(f"WorkQueueManager: Releasing lock")
+            Globals.queue_locker = "N/A"
             Globals.work_queue_lock.release()
             continue
 
@@ -39,41 +46,47 @@ def work_loop():
         if Globals.work_waiting_queue[0]["start_time"] <= dt.now():
             work_item = Globals.work_waiting_queue.pop(0)
 
-            for i in free_cores:
-                Globals.core_map[i] = work_item["TaskID"]
+            try:
+                start_PartitionProcess(work_item, free_cores)
 
-            start_PartitionProcess(work_item, free_cores)
+                for i in free_cores:
+                    Globals.core_map[i] = work_item["TaskID"]
+            except ValueError:
+                print(f"WORKWAITINGQUEUE: DNN FAILED {work_item}")
+            except MemoryError:
+                print(f"WORKWAITINGQUEUE: MEMORY ERROR ON PARTITION START {work_item}")
 
+        # print(f"WorkQueueManager: Releasing lock")
+        Globals.queue_locker = "N/A"
         Globals.work_queue_lock.release()
     return
 
 
 def start_PartitionProcess(work_item, free_cores):
-    # load_result = inference_engine_e2e_with_ipc.LoadImage(None, work_item["TaskID"])
-    # data = load_result["data"]
-    # shape = load_result["shape"]
+    load_result = inference_engine_e2e_with_ipc.LoadImage(None, work_item["TaskID"])
+    data = load_result["data"]
+    shape = load_result["shape"]
 
     print(f"TASK CREATE: \t{work_item['TaskID']} - {dt.now()}")
-    # Globals.work_queue_lock.acquire(blocking=True)
-    # ["data", "shape", "N", "M", "cores", "TaskID"]
-    # x = inference_engine_e2e_with_ipc.PartitionProcess({
-    #     "data": data,
-    #     "shape": shape,
-    #     "N": work_item["N"],
-    #     "M": work_item["M"],
-    #     "cores": free_cores,
-    #     "TaskID": work_item["TaskID"]})
 
-    x = InferenceTestObj.InferenceTestObj({
+    # ["data", "shape", "N", "M", "cores", "TaskID"]
+    x = inference_engine_e2e_with_ipc.PartitionProcess({
+        "data": data,
+        "shape": shape,
         "N": work_item["N"],
         "M": work_item["M"],
         "cores": free_cores,
-        "TaskID": work_item["TaskID"]}, work_item["finish_time"])
+        "TaskID": work_item["TaskID"]})
+
+    # x = InferenceTestObj.InferenceTestObj({
+    #     "N": work_item["N"],
+    #     "M": work_item["M"],
+    #     "cores": free_cores,
+    #     "TaskID": work_item["TaskID"]}, work_item["finish_time"])
 
     print(f"TASK START: \t{work_item['TaskID']} - {dt.now()}")
     x.start()
     Globals.thread_holder[work_item["TaskID"]] = x
-    # Globals.work_queue_lock.release()
 
 
 def fetch_core_usage():

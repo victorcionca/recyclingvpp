@@ -21,11 +21,14 @@ def halt_endpoint(json_request_body):
             process_thread = Globals.thread_holder[dnn_id]
             process_thread.halt()
 
+            print(f"Halted Task: {dnn_id}")
+            print(f"CoreMap: {Globals.core_map}")
+            decrement_counter = 0
             for i in range(0, len(Globals.core_map.keys())):
                 if Globals.core_map[i] == dnn_id:
-                    Globals.active_capacity = Globals.active_capacity - 1
+                    decrement_counter += 1
                     Globals.core_map[i] = ""
-            
+            Globals.active_capacity = Globals.active_capacity - decrement_counter
             del Globals.thread_holder[dnn_id]
         del Globals.dnn_hold_dict[dnn_id]
     return
@@ -33,8 +36,9 @@ def halt_endpoint(json_request_body):
 
 def general_allocate_and_forward_function(json_request_body):
 
-    Globals.work_request_lock.release()
+    
     if not json_request_body["success"]:
+        Globals.work_request_lock.release()
         return
 
     dnn_task = HighCompResult.HighCompResult()
@@ -44,12 +48,15 @@ def general_allocate_and_forward_function(json_request_body):
     print(f"CURRENT_TIME: {dt.now()}")
 
     image_data = None
-    
 
     if dnn_task.allocated_host != "self":
-        image_data = requests.get(f"http://{dnn_task.allocated_host}:{Constants.REST_PORT}{Constants.TASK_FORWARD}")
+        print(f"REQUESTING DATA: http://{dnn_task.source_host}:{Constants.REST_PORT}{Constants.GET_IMAGE}")
+        image_data = requests.get(f"http://{dnn_task.source_host}:{Constants.REST_PORT}{Constants.GET_IMAGE}")
+        print(f"DATA Transferred: {dnn_task.allocated_host}")
 
+    print(f"DNN_N {dnn_task.n} DNN_M {dnn_task.m}")
     Globals.active_capacity += dnn_task.n * dnn_task.m
+    Globals.work_request_lock.release()
 
     partition_and_process(
         dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])

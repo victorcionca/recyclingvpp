@@ -7,6 +7,7 @@ import datetime
 import Globals
 import EventType
 import utils
+import random
 hostName = "localhost"
 
 
@@ -78,7 +79,7 @@ class RestInterface(BaseHTTPRequestHandler):
 
         if Globals.SET_A_OR_B:
             start_time = start_time + datetime.timedelta(seconds=Constants.FRAME_RATE / 2)
-
+        
         event_items = len(Globals.trace_list)
         Globals.queue_lock.acquire(blocking=True)
         for i in range(0, event_items):

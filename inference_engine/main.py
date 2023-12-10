@@ -74,16 +74,21 @@ def sync_timestamp():
 
 
 def main():
-    start_IPERF(logging)
     Constants.CLIENT_ADDRESS = sys.argv[1]
+    if len(sys.argv) == 3:
+        print(f"CLIENT_ADDRESS: {Constants.CLIENT_ADDRESS}")
+        print(f"SERVER_ADDRESS: {Constants.CONTROLLER_HOST_NAME}")
+        Constants.CONTROLLER_HOST_NAME = sys.argv[2]
+
+    start_IPERF(logging)
     logging.basicConfig(level=logging.INFO)
     logging.getLogger().setLevel(logging.INFO)
     sync_timestamp()
     start_REST(logging)
-    hello(logging)
     start_ResultsQueueManager(logging)
     startOutboundComms(logging)
     start_WorkWaitingQueue(logging)
+    hello(logging)
     start_WorkStealing(logging)
 
     return

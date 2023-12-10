@@ -1,7 +1,9 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 import json
+from socketserver import ThreadingMixIn
 import Constants
 import rest_functions
+import threading
 
 import Globals
 from datetime import datetime as dt
@@ -10,6 +12,9 @@ hostName = "localhost"
 
 
 device_host_list = []
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    pass
 
 class RestInterface(BaseHTTPRequestHandler):
 
@@ -67,8 +72,6 @@ class RestInterface(BaseHTTPRequestHandler):
             function = None
             if self.path == Constants.TASK_ALLOCATION:
                 function = rest_functions.general_allocate_and_forward_function
-            elif self.path == Constants.TASK_FORWARD:
-                function = rest_functions.task_allocation_function
             elif self.path == Constants.HALT_ENDPOINT:
                 function = rest_functions.halt_endpoint
             elif self.path == Constants.LOW_CAP:
@@ -76,13 +79,20 @@ class RestInterface(BaseHTTPRequestHandler):
             elif self.path == Constants.RAISE_CAP:
                 function = rest_functions.increment_capacity
 
+            # x = threading.Thread(target=work_function, args=(json_request, function, self.path))
+            # x.start()
+            work_function(json_request=json_request, function=function, path=self.path)
+
+            # print(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}")
+            # Globals.work_queue_lock.acquire(blocking=True)
+            # print(f"REST SERVER: Acquired lock for {self.path}")
+            # Globals.queue_locker = "REST SERVER"
             # if callable(function):
-            #      x = Thread(target=function, args=(json_request,))
-            #      x.start()
-            Globals.work_queue_lock.acquire(blocking=True)
-            if callable(function):
-                function(json_request)
-            Globals.work_queue_lock.release()
+            #     function(json_request)
+
+            # print(f"REST SERVER: Releasing lock")
+            # Globals.queue_locker = "N/A"
+            # Globals.work_queue_lock.release()
 
             response_code = 200
 
@@ -95,6 +105,7 @@ class RestInterface(BaseHTTPRequestHandler):
             return
 
     def do_GET(self):
+        print(f"GET RECEIVED: {self.path}")
         if self.path == Constants.GET_IMAGE:
             image_content = None
             # Open and read the image file
@@ -108,11 +119,31 @@ class RestInterface(BaseHTTPRequestHandler):
 
             # Send the image content
             self.wfile.write(image_content)
-        
+
+        elif self.path == Constants.EXPERIMENT_START:
+            Globals.work_request_lock.release()
+            self.send_response(200)
+            self.end_headers()
+
+def work_function(json_request, function, path):
+    print(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}")
+    Globals.work_queue_lock.acquire(blocking=True)
+    print(f"REST SERVER: Acquired lock for {path}")
+    Globals.queue_locker = f"REST SERVER: {path}"
+
+    try:
+        function(json_request)
+    except:
+        print(f"REST SERVER: AN ERROR HAS OCCURRED {path}")
+        pass
+
+    print(f"REST SERVER: Releasing lock")
+    Globals.queue_locker = "N/A"
+    Globals.work_queue_lock.release()
 
 def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):
     server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
+    httpd = ThreadedHTTPServer(server_address, handler_class)
     print('REST: Starting httpd...\n')
     try:
         httpd.serve_forever()

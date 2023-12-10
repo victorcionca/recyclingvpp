@@ -62,11 +62,16 @@ test mode   - bool  : Boolean value for testing
 eg. python3 main.py 0 True False 
 '''
 if __name__ == "__main__":
-    working_directory = "/Users/jamiecotter/Documents/Work/PhD/recyclingvpp/experiment_manager"
+    working_directory = "/home/pi/recyclingvpp/experiment_manager"
 
     device_task = int(sys.argv[1]) if len(sys.argv) != 1 else 0
     Globals.SET_A_OR_B = sys.argv[2] == "True" if len(sys.argv) != 1 else False
     test_mode = sys.argv[3] == "True" if len(sys.argv) != 1 else True
+
+    if len(sys.argv) == 5:
+        print(f"CONTROLLER_HOST_NAME: {sys.argv[4]}")
+        Constants.CONTROLLER_HOST_NAME = sys.argv[4]
+        
     trace_file_path = f"{working_directory}/test_trace_file.json" if test_mode else f"{working_directory}/trace_file.json"
     trace_file = open(trace_file_path, "r")
     trace_data = json.load(trace_file)

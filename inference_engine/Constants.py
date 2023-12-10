@@ -9,6 +9,7 @@ TASK_FORWARD = "/forward_task"
 GET_IMAGE = "/get_image"
 RAISE_CAP = "/raise_cap"
 LOW_CAP = "/low_cap"
+EXPERIMENT_START = "/experiment_start"
 
 
 ALLOCATE_LOW_TASK = "/allocate_low_task"
@@ -36,7 +37,7 @@ SET_A_OR_B = False
 
 
 CONTROLLER_DEFAULT_ROUTE = "/controller"
-CONTROLLER_HOST_NAME = "127.0.0.1"
+CONTROLLER_HOST_NAME = "192.168.81.195"
 CONTROLLER_DEFAULT_PORT = 6502
 CONTROLLER_REGISTER_DEVICE = f"{CONTROLLER_DEFAULT_ROUTE}/register_device"
 CONTROLLER_STATE_UPDATE = f"{CONTROLLER_DEFAULT_ROUTE}/state_update"
