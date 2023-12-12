@@ -30,20 +30,28 @@ def ThreadStart(logging, function, thread_name):
 
 
 def sync_timestamp():
-    # Create an NTP client
-    client = ntplib.NTPClient()
+    retry = True
+    while retry:
+        try:
+            # Create an NTP client
+            client = ntplib.NTPClient()
 
-    # Query the NTP server and get the response
-    response = client.request(Constants.CONTROLLER_HOST_NAME)
+            # Query the NTP server and get the response
+            response = client.request(Constants.CONTROLLER_HOST_NAME)
 
-    # Adjust the local system time based on the NTP server's response
-    now = datetime.fromtimestamp(response.tx_time)
+            # Adjust the local system time based on the NTP server's response
+            now = datetime.fromtimestamp(response.tx_time)
 
-    # Set the system time of the current device
-    # Note: Setting system time may require elevated privileges (e.g., running as administrator)
-    # Consult the platform-specific documentation for setting system time in your environment
-    #TODO Make sure to set this back for RPi's
-    # os.system('sudo date -s "{}"'.format(now))
+            # Set the system time of the current device
+            # Note: Setting system time may require elevated privileges (e.g., running as administrator)
+            # Consult the platform-specific documentation for setting system time in your environment
+            #TODO Make sure to set this back for RPi's
+            os.system('sudo date -s "{}"'.format(now))
+            print("NTP SYNC: Timestamp successfully synced with server")
+            retry = False
+        except:
+            print("NTP SYNC: Timestamp sync with server failed, retrying.")
+            retry = True
 
 
 def main():
