@@ -28,6 +28,7 @@ def work_loop():
         Globals.work_queue_lock.acquire(blocking=True)
         # print(f"WorkWaitingQueue: Acquired lock")
         Globals.queue_locker = "WorkWaitingQueue"
+        Globals.lock_counter += 1
         worker_watcher()
 
         if len(Globals.work_waiting_queue) == 0 or fetch_core_usage() + Globals.work_waiting_queue[0][

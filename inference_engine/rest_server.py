@@ -4,12 +4,15 @@ from socketserver import ThreadingMixIn
 import Constants
 import rest_functions
 import threading
+import base64
 
 import Globals
 from datetime import datetime as dt
 
 hostName = "localhost"
 
+
+request_version_list = []
 
 device_host_list = []
 
@@ -69,6 +72,21 @@ class RestInterface(BaseHTTPRequestHandler):
             else:
                 json_request = json.loads(request_body)
 
+            
+            if isinstance(json_request, dict) and "request_version" in json_request.keys():
+                if json_request["request_version"] in request_version_list:
+                    response_code = 200
+
+                    self.send_response(response_code)
+                    self.end_headers()
+
+                    print(f"REST SERVER: Duplicate Request for {self.path}, version_id: {json_request['request_version']}")
+
+                    return
+                else:
+                    request_version_list.append(json_request["request_version"])
+
+
             function = None
             if self.path == Constants.TASK_ALLOCATION:
                 function = rest_functions.general_allocate_and_forward_function
@@ -79,20 +97,7 @@ class RestInterface(BaseHTTPRequestHandler):
             elif self.path == Constants.RAISE_CAP:
                 function = rest_functions.increment_capacity
 
-            # x = threading.Thread(target=work_function, args=(json_request, function, self.path))
-            # x.start()
             work_function(json_request=json_request, function=function, path=self.path)
-
-            # print(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}")
-            # Globals.work_queue_lock.acquire(blocking=True)
-            # print(f"REST SERVER: Acquired lock for {self.path}")
-            # Globals.queue_locker = "REST SERVER"
-            # if callable(function):
-            #     function(json_request)
-
-            # print(f"REST SERVER: Releasing lock")
-            # Globals.queue_locker = "N/A"
-            # Globals.work_queue_lock.release()
 
             response_code = 200
 
@@ -107,36 +112,47 @@ class RestInterface(BaseHTTPRequestHandler):
     def do_GET(self):
         print(f"GET RECEIVED: {self.path}")
         if self.path == Constants.GET_IMAGE:
-            image_content = None
-            # Open and read the image file
-            with open(Constants.INITIAL_FILE_PATH, 'rb') as f:
-                image_content = f.read()
+            try:
+                image_content = None
+                # Open and read the image file
+                with open(Constants.INITIAL_FILE_PATH, 'rb') as f:
+                    image_content = f.read()
 
-            # Set the content type to 'image/jpeg'
-            self.send_response(200)
-            self.send_header('Content-type', 'image/png')
-            self.end_headers()
 
-            # Send the image content
-            self.wfile.write(image_content)
+                # Set the content type to 'image/jpeg'
+                self.send_response(200)
+                self.send_header('Content-type', 'image/png')
+                self.send_header('Content-Length', f"{len(image_content)}")
+                self.end_headers()
+
+                # Send the image content
+                self.wfile.write(image_content)
+                print(f"IMAGE TRANSFERRED: {self.path}")
+            except:
+                print("TRANSFERRING IMAGE FAILED")
 
         elif self.path == Constants.EXPERIMENT_START:
             Globals.work_request_lock.release()
             self.send_response(200)
             self.end_headers()
 
+        elif self.path == "/pause":
+            print("CONTROLLER CRASH")
+            self.send_response(200)
+            self.end_headers()
+
 def work_function(json_request, function, path):
-    print(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}")
+    print(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}, id {Globals.lock_counter}")
     Globals.work_queue_lock.acquire(blocking=True)
     print(f"REST SERVER: Acquired lock for {path}")
     Globals.queue_locker = f"REST SERVER: {path}"
+    Globals.lock_counter += 1
 
     try:
         function(json_request)
     except:
         print(f"REST SERVER: AN ERROR HAS OCCURRED {path}")
-        pass
-
+    
     print(f"REST SERVER: Releasing lock")
     Globals.queue_locker = "N/A"
     Globals.work_queue_lock.release()

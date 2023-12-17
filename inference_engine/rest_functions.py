@@ -50,8 +50,8 @@ def general_allocate_and_forward_function(json_request_body):
     image_data = None
 
     if dnn_task.allocated_host != "self":
-        print(f"REQUESTING DATA: http://{dnn_task.source_host}:{Constants.REST_PORT}{Constants.GET_IMAGE}")
-        image_data = requests.get(f"http://{dnn_task.source_host}:{Constants.REST_PORT}{Constants.GET_IMAGE}")
+        print(f"REQUESTING DATA: http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
+        image_data = requests.get(f"http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
         print(f"DATA Transferred: {dnn_task.allocated_host}")
 
     print(f"DNN_N {dnn_task.n} DNN_M {dnn_task.m}")

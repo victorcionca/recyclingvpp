@@ -11,7 +11,7 @@ def stealing_loop():
             continue
 
         url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_HIGH_WORK_REQUEST}"
-        Globals.work_request_lock.acquire()
+        Globals.work_request_lock.acquire(blocking=True)
         requests.post(url, json={"capacity": Globals.active_capacity})
         time.sleep(1/1000)
     return

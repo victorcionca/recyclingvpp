@@ -45,7 +45,7 @@ active_capacity = 0
 is_requesting = True
 
 work_request_lock = threading.Lock()
-work_request_lock.acquire()
+work_request_lock.acquire(blocking=True)
 
 # Need to hold threads so that I can halt later if need be
 # Key is DNN ID, value is the processor
@@ -54,4 +54,6 @@ thread_holder_inference: Dict[str, inference_engine_e2e_with_ipc.PartitionProces
 # thread_holder_testing: Dict[str, InferenceTestObj.InferenceTestObj] = dict()
 
 thread_holder = thread_holder_inference
+
+lock_counter = 0
 

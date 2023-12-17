@@ -1,4 +1,4 @@
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 import json
 import logging
 from datetime import datetime as dt
@@ -11,12 +11,34 @@ import random
 hostName = "localhost"
 
 
-class RestInterface(BaseHTTPRequestHandler):
+class RestInterface(SimpleHTTPRequestHandler):
 
     def _set_response(self):
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.end_headers()
+
+    def do_GET(self):
+        print(f"GET RECEIVED: {self.path}")
+        if self.path == Constants.GET_IMAGE:
+            try:
+                image_content = None
+                # Open and read the image file
+                with open(Constants.INITIAL_FILE_PATH, 'rb') as f:
+                    image_content = f.read()
+
+
+                # Set the content type to 'image/jpeg'
+                self.send_response(200)
+                self.send_header('Content-type', 'image/png')
+                self.send_header('Content-Length', f"{len(image_content)}")
+                self.end_headers()
+
+                # Send the image content
+                self.wfile.write(image_content)
+                print(f"IMAGE TRANSFERRED: {self.path}")
+            except:
+                print("TRANSFERRING IMAGE FAILED")
 
     def do_POST(self):
         json_request = {}

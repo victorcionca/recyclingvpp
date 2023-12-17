@@ -11,7 +11,7 @@ TASK_REALLOCATION = "/reallocate_high_task"
 TASK_FORWARD = "/forward_task"
 TASK_ASSEMBLY = "/assembly"
 PRUNE_DNN = "/prune"
-
+GET_IMAGE = "/get_image"
 LOW_CAP = "/low_cap"
 
 

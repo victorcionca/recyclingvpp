@@ -15,10 +15,11 @@ def ResultsQueueLoop():
         
         task_id: str = result_obj["TaskID"]
 
-        print(f"ResultQueueManager: Requesting lock, held by {Globals.queue_locker}")
+        print(f"ResultQueueManager: Requesting lock, held by {Globals.queue_locker}, id {Globals.lock_counter}")
         Globals.work_queue_lock.acquire(blocking=True)
         print(f"ResultQueueManager: Acquired lock")
         Globals.queue_locker = "ResultsQueueManager"
+        Globals.lock_counter += 1
         decrement_counter = 0
 
         print(f"ResultsQueueManager: Completed Task: {task_id}")
