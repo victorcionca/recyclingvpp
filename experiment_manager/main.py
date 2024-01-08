@@ -47,16 +47,16 @@ def sync_timestamp():
             # Consult the platform-specific documentation for setting system time in your environment
             #TODO Make sure to set this back for RPi's
             os.system('sudo date -s "{}"'.format(now))
-            print("NTP SYNC: Timestamp successfully synced with server")
+            logging.info("NTP SYNC: Timestamp successfully synced with server")
             retry = False
         except:
-            print("NTP SYNC: Timestamp sync with server failed, retrying.")
+            logging.info("NTP SYNC: Timestamp sync with server failed, retrying.")
             retry = True
 
 
 def main():
-    sync_timestamp()
     logging.basicConfig(level=logging.INFO)
+    sync_timestamp()
     start_REST(logging)
     start_experiment_loop(logging)
     return

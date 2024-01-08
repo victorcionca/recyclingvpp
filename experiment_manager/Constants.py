@@ -33,5 +33,5 @@ CONTROLLER_LOW_COMP_ALLOCATION = f"{CONTROLLER_DEFAULT_ROUTE}/low_offload_reques
 CONTROLLER_HIGH_COMP_ALLOCATION = f"{CONTROLLER_DEFAULT_ROUTE}/high_offload_request"
 CONTROLLER_STATE_UPDATE = f"{CONTROLLER_DEFAULT_ROUTE}/state_update"
 
-INITIAL_FILE_PATH = "/Users/jamiecotter/Documents/Work/PhD/recyclingvpp/inference_engine/metal110.jpg"
+INITIAL_FILE_PATH = "/home/pi/recyclingvpp/inference_engine/metal110.jpg"
 CLIENT_ADDRESS = "raspberrypi1.local"

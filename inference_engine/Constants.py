@@ -10,6 +10,7 @@ GET_IMAGE = "/get_image"
 RAISE_CAP = "/raise_cap"
 LOW_CAP = "/low_cap"
 EXPERIMENT_START = "/experiment_start"
+RETURN_TASK = "/ret_task"
 
 
 ALLOCATE_LOW_TASK = "/allocate_low_task"

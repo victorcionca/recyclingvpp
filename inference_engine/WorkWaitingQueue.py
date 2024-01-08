@@ -7,8 +7,12 @@ from threading import Thread
 import rest_functions
 import OutboundComm
 import OutboundComms
-import sys
+import traceback
+import logging
 import OutboundCommTypes
+#from memory_profiler import profile
+
+
 
 
 # work_item = { # type: ignore
@@ -53,22 +57,33 @@ def work_loop():
                 for i in free_cores:
                     Globals.core_map[i] = work_item["TaskID"]
             except ValueError:
-                print(f"WORKWAITINGQUEUE: DNN FAILED {work_item}")
-            except MemoryError:
-                print(f"WORKWAITINGQUEUE: MEMORY ERROR ON PARTITION START {work_item}")
+                logging.info(f"WORKWAITINGQUEUE: DNN FAILED {work_item}")
+            except MemoryError as e:
+                logging.info(f"WORKWAITINGQUEUE: MEMORY ERROR ON PARTITION START {work_item}\n")
+                logging.info(f"CORE_MAP: {Globals.core_map}\n")
+                logging.info(f"CORE_MAP: {Globals.work_waiting_queue}\n")
+
+                for i in range(0, len(Globals.core_map.keys())):
+                    if Globals.core_map[i] == work_item["TaskID"]:
+                        Globals.core_map[i] = ""
+
+                logging.info(e)
+                logging.info(traceback.format_exc())
+                exit()
+                # Globals.work_waiting_queue.append(work_item)
 
         # print(f"WorkQueueManager: Releasing lock")
         Globals.queue_locker = "N/A"
         Globals.work_queue_lock.release()
     return
 
-
+#@profile(stream=Globals.inference_mem_prof)
 def start_PartitionProcess(work_item, free_cores):
     load_result = inference_engine_e2e_with_ipc.LoadImage(None, work_item["TaskID"])
     data = load_result["data"]
     shape = load_result["shape"]
 
-    print(f"TASK CREATE: \t{work_item['TaskID']} - {dt.now()}")
+    logging.info(f"TASK CREATE: \t{work_item['TaskID']} - {dt.now()}")
 
     # ["data", "shape", "N", "M", "cores", "TaskID"]
     x = inference_engine_e2e_with_ipc.PartitionProcess({
@@ -85,7 +100,7 @@ def start_PartitionProcess(work_item, free_cores):
     #     "cores": free_cores,
     #     "TaskID": work_item["TaskID"]}, work_item["finish_time"])
 
-    print(f"TASK START: \t{work_item['TaskID']} - {dt.now()}")
+    logging.info(f"TASK START: \t{work_item['TaskID']} - {dt.now()}")
     x.start()
     Globals.thread_holder[work_item["TaskID"]] = x
 
@@ -113,8 +128,8 @@ def worker_watcher():
             dnn = Globals.dnn_hold_dict[dnn_id]
             if dnn.estimated_finish < dt.now():
                 rest_functions.halt_endpoint({"dnn_id": dnn_id, "version": dnn.version})
-                print(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
-                print(f"TASK EXCPT: \t{dnn_id} - {dnn.estimated_finish}")
+                logging.info(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
+                logging.info(f"TASK EXCPT: \t{dnn_id} - {dnn.estimated_finish}")
                 state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(),
                                                               comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE,
                                                               payload={"dnn_id": dnn_id}, dnn_id=dnn_id, version=-10)

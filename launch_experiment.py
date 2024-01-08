@@ -13,14 +13,17 @@ def open_iterm2_tab(command_to_run):
 def main():
     # Check if the correct number of arguments is provided
     import sys
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print(f"Usage: {sys.argv[0]} <script_name.py> <controller_hostname> <client1_hostname> <client2_hostname> <client3_hostname> <client4_hostname>")
         sys.exit(1)
 
-    controller_hostname = sys.argv[1]
-    client_hostnames = sys.argv[2:]
+    profile_application = (sys.argv[1]).lower()
+    controller_hostname = sys.argv[2]
+    client_hostnames = sys.argv[3:]
     username = "pi"
     recyclingvpp_directory = "/home/pi/recyclingvpp"
+
+    inference_program = "./run_inference.sh" if profile_application != "true" else "./run_inference_profile.sh"
 
     # Loop through client hostnames and open two iTerm2 tabs for each
     for index in range(0, len(client_hostnames)):
@@ -38,7 +41,7 @@ def main():
         open_iterm2_tab(f'ssh {username}@{client} \'cd {recyclingvpp_directory} && ./run_experiment.sh {index_expr} {first_arg_expr} {second_arg_expr} {third_arg_expr}\'')
 
         # Second tab: run_inference.sh
-        open_iterm2_tab(f'ssh {username}@{client} \'cd {recyclingvpp_directory} && ./run_inference.sh {client} {controller_hostname}\'')
+        open_iterm2_tab(f'ssh {username}@{client} \'cd {recyclingvpp_directory} && {inference_program} {client} {controller_hostname}\'')
 
 if __name__ == "__main__":
     main()

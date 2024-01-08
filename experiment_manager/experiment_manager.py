@@ -1,5 +1,6 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 import json
+from socketserver import ThreadingMixIn
 import logging
 from datetime import datetime as dt
 import Constants
@@ -11,6 +12,9 @@ import random
 hostName = "localhost"
 
 
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    pass
+
 class RestInterface(SimpleHTTPRequestHandler):
 
     def _set_response(self):
@@ -19,7 +23,7 @@ class RestInterface(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        print(f"GET RECEIVED: {self.path}")
+        logging.info(f"GET RECEIVED: {self.path}")
         if self.path == Constants.GET_IMAGE:
             try:
                 image_content = None
@@ -36,9 +40,9 @@ class RestInterface(SimpleHTTPRequestHandler):
 
                 # Send the image content
                 self.wfile.write(image_content)
-                print(f"IMAGE TRANSFERRED: {self.path}")
-            except:
-                print("TRANSFERRING IMAGE FAILED")
+                logging.info(f"IMAGE TRANSFERRED: {self.path}")
+            except Exception as e:
+                logging.info(f"TRANSFERRING IMAGE FAILED: {e}")
 
     def do_POST(self):
         json_request = {}
@@ -66,7 +70,7 @@ class RestInterface(SimpleHTTPRequestHandler):
                 self.set_experiment_start_time(json_request=json_request)
 
         except json.JSONDecodeError:
-            print(f"Received request was not json: {request_str}")
+            logging.info(f"Received request was not json: {request_str}")
             response_code = 400
             return
 
@@ -85,7 +89,7 @@ class RestInterface(SimpleHTTPRequestHandler):
         else:
             finish_time = from_ms_since_epoch(str(json_request["finish_time"]))
 
-        print(f'{finish_time.strftime("%Y-%m-%d %H:%M:%S:%f")} LOW COMP ALLO FIN')
+        logging.info(f'{finish_time.strftime("%Y-%m-%d %H:%M:%S:%f")} LOW COMP ALLO FIN')
 
         utils.add_task_to_event_queue(
             event_item={"event_type": EventType.EventTypes.LOW_COMP_FINISH, "time": finish_time, "dnn_id": dnn_id})
@@ -128,7 +132,7 @@ def from_ms_since_epoch(ms: str) -> dt:
     return dt.fromtimestamp(int(ms) / 1000.0)
 
 
-def run_server(server_class=HTTPServer, handler_class=RestInterface, port=Constants.EXPERIMENT_INFERFACE):
+def run_server(server_class=ThreadedHTTPServer, handler_class=RestInterface, port=Constants.EXPERIMENT_INFERFACE):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)

@@ -9,6 +9,8 @@ import threading
 
 import InferenceTestObj
 
+inference_mem_prof=open('/home/pi/recyclingvpp/inference_memory_profile.log','w+')
+
 work_queue_lock = threading.Lock()
 queue_locker = "N/A"
 
@@ -38,8 +40,6 @@ core_map: Dict[int, str] = {
     3: ""
 }
 
-active_capacity = 0
-
 # Stops the polling thread from sending requests,
 # Doesn't send its first request until iperf test has completed
 is_requesting = True
@@ -56,4 +56,3 @@ thread_holder_inference: Dict[str, inference_engine_e2e_with_ipc.PartitionProces
 thread_holder = thread_holder_inference
 
 lock_counter = 0
-

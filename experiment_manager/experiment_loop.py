@@ -4,6 +4,7 @@ import datetime
 import EventType
 import random
 import requests
+import logging
 from datetime import datetime as dt
 
 def run_loop():
@@ -34,8 +35,8 @@ def run_loop():
                     dnn_id_counter = dnn_id_counter + 1
             elif current_item["event_type"] == EventType.EventTypes.LOW_COMP_FINISH:
                 finish_time = current_item["time"]
-                print(f'{current_item["time"].strftime("%Y-%m-%d %H:%M:%S:%f")} LOW EXPECTED FIN')
-                print(f'{now_time.strftime("%Y-%m-%d %H:%M:%S:%f")} NOW')
+                logging.info(f'{current_item["time"].strftime("%Y-%m-%d %H:%M:%S:%f")} LOW EXPECTED FIN')
+                logging.info(f'{now_time.strftime("%Y-%m-%d %H:%M:%S:%f")} NOW')
 
                 issue_low_comp_update(current_item["dnn_id"], current_item["time"])
                 
@@ -44,38 +45,54 @@ def run_loop():
                     dnn_id_counter = dnn_id_counter + 1
 
         Globals.queue_lock.release()
-    print("Done")
+    logging.info("Done")
     return
 
 def issue_low_comp_update(dnn_id: str, time: dt):
     data = {
         "dnn_id": dnn_id,
-        "finish_time": int(dt.now().timestamp() * 1000)
+        "finish_time": int(dt.now().timestamp() * 1000),
+        "request_id": f"{dt.now().timestamp()}"
     }
 
     headers = {
         "Content-Type": "application/json",
     }
 
-    url_low_cap = f"http://127.0.0.1:{REST_PORT}{LOW_CAP}"
-    response_low_cap = requests.post(url_low_cap, json={}, headers=headers)
-
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_STATE_UPDATE}"
-    response = requests.post(url, json=data, headers=headers)
+    logging.info(f"COMPLETED DNN {data}")
+    success = False
+    while not success:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            logging.info(f"CONTROLLER ACK COMP DNN {data['dnn_id']}")
+            success = True
+        except Exception as e:
+            logging.info(f"ELoop: Failed to reach contr - {e}")
     return
 
 def generate_low_comp_request(deadline: datetime.datetime, dnn_id: int):
+
     data = {
         "dnn_id": str(dnn_id),
         "deadline": int(deadline.timestamp() * 1000),
+        "request_id": f"{dt.now().timestamp()}"
     }
 
     headers = {
         "Content-Type": "application/json",
     }
 
+
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_LOW_COMP_ALLOCATION}"
-    response = requests.post(url, json=data, headers=headers)
+
+    success = False
+    while not success:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            success = True
+        except Exception as e:
+            logging.info(f"ELoop: Failed to reach contr - {e}")
     return
 
 
@@ -83,7 +100,8 @@ def generate_high_comp_request(deadline: datetime.datetime, dnn_id: int, task_co
     data = {
         "dnn_id": str(dnn_id),
         "deadline": int(deadline.timestamp() * 1000),
-        "task_count": task_count
+        "task_count": task_count,
+        "request_id": f"{dt.now().timestamp()}"
     }
 
     headers = {
@@ -91,5 +109,13 @@ def generate_high_comp_request(deadline: datetime.datetime, dnn_id: int, task_co
     }
 
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_HIGH_COMP_ALLOCATION}"
-    response = requests.post(url, json=data, headers=headers)
+    
+    success = False
+    while not success:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            success = True
+        except Exception as e:
+            logging.info(f"ELoop: Failed to reach contr - {e}")
+
     return

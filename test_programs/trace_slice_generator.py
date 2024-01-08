@@ -5,8 +5,8 @@ from os import path
 frame_rate_seconds = 18.665072
 task_cutoff_minutes = 30
 trace_file_dir = "/Users/jamiecotter/Documents/Work/PhD/recyclingvpp/trace_files"
-trace_file_path = f"{trace_file_dir}/uniform_trace_file.json"
-trace_save_path = f"{trace_file_dir}/sliced_uniform_trace_file.json"
+trace_file_path = f"{trace_file_dir}/weighted_trace_file_4.json"
+trace_save_path = f"{trace_file_dir}/weighted_4_slice_trace_file.json"
 
 
 def main():

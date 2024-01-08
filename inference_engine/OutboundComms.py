@@ -1,5 +1,4 @@
 import Globals
-import DataProcessing
 import OutboundComm
 from datetime import datetime as dt
 import OutboundCommTypes
@@ -8,6 +7,7 @@ import Constants
 import json
 import requests
 import threading
+import logging
 
 
 def outbound_comm_loop():
@@ -46,7 +46,14 @@ def deadlineViolated(comm_item: OutboundComm.OutboundComm = OutboundComm.Outboun
     if isinstance(comm_item.payload, dict):
         payload: dict = comm_item.payload
         url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_VIOLATED_DEADLINE}"
-        requests.post(url, json=payload)
+        payload["request_id"] = f"{dt.now().timestamp()}"
+        success = False
+        while not success:
+            try:    
+                requests.post(url, json=payload)
+                success = True
+            except Exception as e:
+                logging.info(f"Outbound: Failed to reach contr - {e}")
     return
 
 
@@ -54,7 +61,15 @@ def stateUpdate(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm
     if isinstance(comm_item.payload, dict):
         payload: dict = comm_item.payload
         url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_STATE_UPDATE}"
-        requests.post(url, json=payload)
+        
+        payload["request_id"] = f"{dt.now().timestamp()}"
+        success = False
+        while not success:
+            try:
+                requests.post(url, json=payload)
+                success = True
+            except:
+                logging.info(f"Outbound: Failed to reach contr")
     return
 
 

@@ -1,16 +1,13 @@
 import requests
-
 import Constants
 import Globals
-import DataProcessing
-import OutboundComm
-import OutboundComms
-import OutboundCommTypes
 import HighCompResult
 import WorkWaitingQueue
-
+import logging
+#from memory_profiler import profile
 from datetime import datetime as dt
 
+#@profile(stream=Globals.inference_mem_prof)
 def halt_endpoint(json_request_body):
     dnn_id = json_request_body["dnn_id"]
 
@@ -21,21 +18,21 @@ def halt_endpoint(json_request_body):
             process_thread = Globals.thread_holder[dnn_id]
             process_thread.halt()
 
-            print(f"Halted Task: {dnn_id}")
-            print(f"CoreMap: {Globals.core_map}")
-            decrement_counter = 0
+            logging.info(f"Halted Task: {dnn_id}")
+            logging.info(f"CoreMap: {Globals.core_map}")
+
             for i in range(0, len(Globals.core_map.keys())):
                 if Globals.core_map[i] == dnn_id:
-                    decrement_counter += 1
                     Globals.core_map[i] = ""
-            Globals.active_capacity = Globals.active_capacity - decrement_counter
+
             del Globals.thread_holder[dnn_id]
         del Globals.dnn_hold_dict[dnn_id]
     return
 
-
+#@profile(stream=Globals.inference_mem_prof)
 def general_allocate_and_forward_function(json_request_body):
 
+    logging.info(f"REST: ALLOCATE - REQUEST COUNTER {json_request_body['request_counter']}")
     
     if not json_request_body["success"]:
         Globals.work_request_lock.release()
@@ -44,28 +41,21 @@ def general_allocate_and_forward_function(json_request_body):
     dnn_task = HighCompResult.HighCompResult()
     dnn_task.generateFromDict(json_request_body["dnn"])
 
-    print(f"DEADLINE: {dnn_task.estimated_finish}")
-    print(f"CURRENT_TIME: {dt.now()}")
+    logging.info(f"DEADLINE: {dnn_task.estimated_finish}")
+    logging.info(f"CURRENT_TIME: {dt.now()}")
 
     image_data = None
-
+    
     if dnn_task.allocated_host != "self":
-        print(f"REQUESTING DATA: http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
+        logging.info(f"REQUESTING DATA: http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
         image_data = requests.get(f"http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
-        print(f"DATA Transferred: {dnn_task.allocated_host}")
+        logging.info(f"DATA Transferred: {dnn_task.allocated_host}")
 
-    print(f"DNN_N {dnn_task.n} DNN_M {dnn_task.m}")
-    Globals.active_capacity += dnn_task.n * dnn_task.m
+    logging.info(f"DNN_N {dnn_task.n} DNN_M {dnn_task.m}")
     Globals.work_request_lock.release()
 
     partition_and_process(
         dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
-    
-def increment_capacity(json_request: dict):
-    Globals.active_capacity += 1
-
-def lower_capacity(json_request: dict):
-    Globals.active_capacity -= 1
 
 def task_allocation_function(json_request_body):
     dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
@@ -74,7 +64,7 @@ def task_allocation_function(json_request_body):
     partition_and_process(dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
     return
 
-
+#@profile(stream=Globals.inference_mem_prof)
 def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_convidx: str, input_data: bytes, input_shape: list):
     load_data: dict = {}
 

@@ -3,18 +3,39 @@ import json
 from socketserver import ThreadingMixIn
 import Constants
 import rest_functions
-import threading
-import base64
-
+import logging
+import PollingThread
+#from memory_profiler import profile
 import Globals
 from datetime import datetime as dt
+from datetime import timedelta as td
 
 hostName = "localhost"
 
-
-request_version_list = []
-
 device_host_list = []
+
+request_version_list = {}
+
+def search_and_prune_version(request_version):
+    global request_version_list
+
+    version_found = False
+
+    new_request_list = {}
+    for vers, time_val in request_version_list.items():
+        if vers == request_version:
+            version_found = True
+        
+        if dt.now() < time_val + td(seconds=10):
+            new_request_list[vers] = time_val
+    
+    if version_found == False:
+        new_request_list[request_version] = dt.now()
+
+    request_version_list = new_request_list
+
+    return version_found
+    
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     pass
@@ -28,7 +49,7 @@ class RestInterface(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress the default logging
         pass
-
+    
     def do_POST(self):
         json_request = {}
 
@@ -74,29 +95,22 @@ class RestInterface(BaseHTTPRequestHandler):
 
             
             if isinstance(json_request, dict) and "request_version" in json_request.keys():
-                if json_request["request_version"] in request_version_list:
+                if search_and_prune_version(json_request["request_version"]):
                     response_code = 200
 
                     self.send_response(response_code)
                     self.end_headers()
 
-                    print(f"REST SERVER: Duplicate Request for {self.path}, version_id: {json_request['request_version']}")
+                    logging.info(f"REST SERVER: Duplicate Request for {self.path}, version_id: {json_request['request_version']}")
 
                     return
-                else:
-                    request_version_list.append(json_request["request_version"])
-
 
             function = None
+
             if self.path == Constants.TASK_ALLOCATION:
                 function = rest_functions.general_allocate_and_forward_function
             elif self.path == Constants.HALT_ENDPOINT:
                 function = rest_functions.halt_endpoint
-            elif self.path == Constants.LOW_CAP:
-                function = rest_functions.lower_capacity
-            elif self.path == Constants.RAISE_CAP:
-                function = rest_functions.increment_capacity
-
             work_function(json_request=json_request, function=function, path=self.path)
 
             response_code = 200
@@ -105,12 +119,12 @@ class RestInterface(BaseHTTPRequestHandler):
             self.end_headers()
 
         except json.JSONDecodeError:
-            print(f"Received request was not json: {request_str}")
+            logging.info(f"Received request was not json: {request_str}")
             response_code = 400
             return
 
     def do_GET(self):
-        print(f"GET RECEIVED: {self.path}")
+        logging.info(f"GET RECEIVED: {self.path}")
         if self.path == Constants.GET_IMAGE:
             try:
                 image_content = None
@@ -127,43 +141,48 @@ class RestInterface(BaseHTTPRequestHandler):
 
                 # Send the image content
                 self.wfile.write(image_content)
-                print(f"IMAGE TRANSFERRED: {self.path}")
+                logging.info(f"IMAGE TRANSFERRED: {self.path}")
             except:
-                print("TRANSFERRING IMAGE FAILED")
+                logging.info("TRANSFERRING IMAGE FAILED")
 
         elif self.path == Constants.EXPERIMENT_START:
             Globals.work_request_lock.release()
             self.send_response(200)
             self.end_headers()
-
-        elif self.path == "/pause":
-            print("CONTROLLER CRASH")
+        
+        elif self.path == "/get_cores":
+            self.send_header('Content-Type', 'application/json')
             self.send_response(200)
             self.end_headers()
+            self.wfile.write(f"CORE_MAP {Globals.core_map} CORE_CAP {PollingThread.capacity_gatherer()} REQUEST_LOCKED {Globals.work_request_lock.locked()}".encode("utf-8"))
+            return
 
 def work_function(json_request, function, path):
-    print(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}, id {Globals.lock_counter}")
+    logging.info(f"REST SERVER: Requesting lock, held by {Globals.queue_locker}, id {Globals.lock_counter}")
     Globals.work_queue_lock.acquire(blocking=True)
-    print(f"REST SERVER: Acquired lock for {path}")
+    logging.info(f"REST SERVER: Acquired lock for {path}")
     Globals.queue_locker = f"REST SERVER: {path}"
     Globals.lock_counter += 1
 
     try:
         function(json_request)
-    except:
-        print(f"REST SERVER: AN ERROR HAS OCCURRED {path}")
+    except Exception as e:
+        logging.info(f"REST SERVER: AN ERROR HAS OCCURRED {path}")
+        logging.info(e)
+        if path == Constants.TASK_ALLOCATION:
+            Globals.work_request_lock.release()
     
-    print(f"REST SERVER: Releasing lock")
+    logging.info(f"REST SERVER: Releasing lock")
     Globals.queue_locker = "N/A"
     Globals.work_queue_lock.release()
 
 def run(server_class=HTTPServer, handler_class=RestInterface, port=Constants.REST_PORT):
     server_address = ('', port)
-    httpd = ThreadedHTTPServer(server_address, handler_class)
-    print('REST: Starting httpd...\n')
+    httpd = server_class(server_address, handler_class)
+    logging.info('REST: Starting httpd...\n')
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         pass
     httpd.server_close()
-    print('REST: Stopping httpd...\n')
+    logging.info('REST: Stopping httpd...\n')

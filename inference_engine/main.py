@@ -28,19 +28,19 @@ def start_ResultsQueueManager(logging):
 
 
 def ThreadStart(logging, function, thread_name):
-    print(f"Main    : before creating {thread_name} thread")
+    logging.info(f"Main    : before creating {thread_name} thread")
     x = threading.Thread(target=function)
-    print(f"Main    : before running {thread_name} thread")
+    logging.info(f"Main    : before running {thread_name} thread")
     x.start()
-    print(f"Main    : running {thread_name} thread")
+    logging.info(f"Main    : running {thread_name} thread")
     return
 
 
 def hello(logging):
-    print("Main    : Registering with controller")
+    logging.info("Main    : Registering with controller")
     host_ip = Constants.CONTROLLER_HOST_NAME
     endpoint = f'http://{host_ip}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_REGISTER_DEVICE}'
-    print(f"endpoint: {endpoint}")
+    logging.info(f"endpoint: {endpoint}")
     requests.post(endpoint)
 
 
@@ -75,23 +75,24 @@ def sync_timestamp():
             # Consult the platform-specific documentation for setting system time in your environment
             #TODO Make sure to set this back for RPi's
             os.system('sudo date -s "{}"'.format(now))
-            print("NTP SYNC: Timestamp successfully synced with server")
+            logging.info("NTP SYNC: Timestamp successfully synced with server")
             retry = False
         except:
-            print("NTP SYNC: Timestamp sync with server failed, retrying.")
+            logging.info("NTP SYNC: Timestamp sync with server failed, retrying.")
             retry = True
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
     Constants.CLIENT_ADDRESS = sys.argv[1]
     if len(sys.argv) == 3:
-        print(f"CLIENT_ADDRESS: {Constants.CLIENT_ADDRESS}")
-        print(f"SERVER_ADDRESS: {Constants.CONTROLLER_HOST_NAME}")
+        logging.info(f"CLIENT_ADDRESS: {Constants.CLIENT_ADDRESS}")
+        logging.info(f"SERVER_ADDRESS: {Constants.CONTROLLER_HOST_NAME}")
         Constants.CONTROLLER_HOST_NAME = sys.argv[2]
 
     start_IPERF(logging)
-    logging.basicConfig(level=logging.INFO)
-    logging.getLogger().setLevel(logging.INFO)
+    
     sync_timestamp()
     start_REST(logging)
     start_ResultsQueueManager(logging)
