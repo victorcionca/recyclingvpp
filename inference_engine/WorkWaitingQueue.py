@@ -7,13 +7,8 @@ from threading import Thread
 import rest_functions
 import OutboundComm
 import OutboundComms
-import traceback
 import logging
 import OutboundCommTypes
-#from memory_profiler import profile
-
-
-
 
 # work_item = { # type: ignore
 #         "data": data,
@@ -25,70 +20,44 @@ import OutboundCommTypes
 #         "TaskID": dnn_task.dnn_id
 #     }
 
+load_result = inference_engine_e2e_with_ipc.LoadImage(None, ["0"])
+
 def work_loop():
-    while True:
-        
-        # print(f"WorkWaitingQueue: Requesting lock, held by {Globals.queue_locker}")
-        Globals.work_queue_lock.acquire(blocking=True)
-        # print(f"WorkWaitingQueue: Acquired lock")
-        Globals.queue_locker = "WorkWaitingQueue"
-        Globals.lock_counter += 1
-        worker_watcher()
+    if len(Globals.work_waiting_queue) == 0:
+        return
+    else:
+        logging.info("Work available")
 
-        if len(Globals.work_waiting_queue) == 0 or fetch_core_usage() + Globals.work_waiting_queue[0][
-            "cores"] > Constants.CORE_COUNT:
-            # print(f"WorkQueueManager: Releasing lock")
-            Globals.queue_locker = "N/A"
-            Globals.work_queue_lock.release()
-            continue
+    if rest_functions.capacity_gatherer() + Globals.work_waiting_queue[0][
+        "cores"] > Constants.CORE_COUNT:
+        logging.info("Capacity Filled")
+        return
+    else:
+        logging.info("Capacity Available")
 
-        free_cores = []
+    free_cores = []
 
-        for core, task_id in Globals.core_map.items():
-            if task_id == "" and len(free_cores) < Globals.work_waiting_queue[0]["cores"]:
-                free_cores.append(core)
+    for core, task_id in Globals.core_map.items():
+        if len(task_id) == 0  and len(free_cores) < Globals.work_waiting_queue[0]["cores"]:
+            free_cores.append(core)
 
-        if Globals.work_waiting_queue[0]["start_time"] <= dt.now():
-            work_item = Globals.work_waiting_queue.pop(0)
+    work_item = Globals.work_waiting_queue.pop(0)
 
-            try:
-                start_PartitionProcess(work_item, free_cores)
+    for i in free_cores:
+        Globals.core_map[i] = [work_item["TaskID"], work_item["finish_time"]]
 
-                for i in free_cores:
-                    Globals.core_map[i] = work_item["TaskID"]
-            except ValueError:
-                logging.info(f"WORKWAITINGQUEUE: DNN FAILED {work_item}")
-            except MemoryError as e:
-                logging.info(f"WORKWAITINGQUEUE: MEMORY ERROR ON PARTITION START {work_item}\n")
-                logging.info(f"CORE_MAP: {Globals.core_map}\n")
-                logging.info(f"CORE_MAP: {Globals.work_waiting_queue}\n")
+    start_PartitionProcess(work_item, free_cores)
 
-                for i in range(0, len(Globals.core_map.keys())):
-                    if Globals.core_map[i] == work_item["TaskID"]:
-                        Globals.core_map[i] = ""
-
-                logging.info(e)
-                logging.info(traceback.format_exc())
-                exit()
-                # Globals.work_waiting_queue.append(work_item)
-
-        # print(f"WorkQueueManager: Releasing lock")
-        Globals.queue_locker = "N/A"
-        Globals.work_queue_lock.release()
     return
 
-#@profile(stream=Globals.inference_mem_prof)
-def start_PartitionProcess(work_item, free_cores):
-    load_result = inference_engine_e2e_with_ipc.LoadImage(None, work_item["TaskID"])
-    data = load_result["data"]
-    shape = load_result["shape"]
 
+def start_PartitionProcess(work_item, free_cores):
     logging.info(f"TASK CREATE: \t{work_item['TaskID']} - {dt.now()}")
 
     # ["data", "shape", "N", "M", "cores", "TaskID"]
     x = inference_engine_e2e_with_ipc.PartitionProcess({
-        "data": data,
-        "shape": shape,
+        "data": load_result["data"],
+        "shape": load_result["shape"],
         "N": work_item["N"],
         "M": work_item["M"],
         "cores": free_cores,
@@ -101,40 +70,48 @@ def start_PartitionProcess(work_item, free_cores):
     #     "TaskID": work_item["TaskID"]}, work_item["finish_time"])
 
     logging.info(f"TASK START: \t{work_item['TaskID']} - {dt.now()}")
-    x.start()
+
     Globals.thread_holder[work_item["TaskID"]] = x
 
-
-def fetch_core_usage():
-    core_usage = 0
-    for value in Globals.core_map.values():
-        if value != "":
-            core_usage = core_usage + 1
-
-    return core_usage
+    x.start()
 
 
-# Assumes that lock has been acquired before accessing
 def add_task(work_item: dict):
     Globals.work_waiting_queue.append(work_item)
-    Globals.work_waiting_queue.sort(key=lambda x: x["start_time"])
 
 
 def worker_watcher():
-    task_id_list = set([value for value in Globals.core_map.values() if value != ""])
 
-    for dnn_id in task_id_list:
-        if dnn_id in Globals.dnn_hold_dict.keys():
-            dnn = Globals.dnn_hold_dict[dnn_id]
-            if dnn.estimated_finish < dt.now():
-                rest_functions.halt_endpoint({"dnn_id": dnn_id, "version": dnn.version})
-                logging.info(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
-                logging.info(f"TASK EXCPT: \t{dnn_id} - {dnn.estimated_finish}")
-                state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(),
-                                                              comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE,
-                                                              payload={"dnn_id": dnn_id}, dnn_id=dnn_id, version=-10)
-                OutboundComms.add_task_to_queue(state_update_comm)
+    task_id_fin_time_mapping = {id_time_pair[0]: id_time_pair[1] for id_time_pair in Globals.core_map.values() if len(id_time_pair) != 0 }
 
-    # Need to send an outbound comm informing controller task violated deadline
+    for dnn_id, fin_time in task_id_fin_time_mapping.items() :
+        if fin_time < dt.now():
+            Globals.halt_queue.append(dnn_id)
+            logging.info(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
+            logging.info(f"TASK EXCPT: \t{dnn_id} - {fin_time}")
 
+            
+            state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(),
+                                                            comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE,
+                                                            payload={"dnn_id": dnn_id}, dnn_id=dnn_id, version=-10)
+            OutboundComms.deadlineViolated(comm_item=state_update_comm)
     return
+
+
+def halt_function():
+    while len(Globals.halt_queue) != 0:
+        dnn_id = Globals.halt_queue.pop(0)
+
+        if dnn_id in Globals.thread_holder.keys():
+            process_thread = Globals.thread_holder[dnn_id]
+            process_thread.halt()
+
+            logging.info(f"Halted Task: {dnn_id}")
+            logging.info(f"CoreMap: {Globals.core_map}")
+
+            for i in range(0, len(Globals.core_map.keys())):
+                if len(Globals.core_map[i]) != 0 and Globals.core_map[i][0] == dnn_id:
+                    Globals.core_map[i] = []
+
+            del Globals.thread_holder[dnn_id]
+        return

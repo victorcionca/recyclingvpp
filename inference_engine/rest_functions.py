@@ -1,84 +1,44 @@
-import requests
 import Constants
 import Globals
-import HighCompResult
+import DataProcessing
 import WorkWaitingQueue
 import logging
-#from memory_profiler import profile
 from datetime import datetime as dt
+import OutboundComms
 
-#@profile(stream=Globals.inference_mem_prof)
 def halt_endpoint(json_request_body):
-    dnn_id = json_request_body["dnn_id"]
-
-    if dnn_id in Globals.dnn_hold_dict.keys():
-        dnn = Globals.dnn_hold_dict[dnn_id]
-
-        if dnn_id in Globals.thread_holder.keys():
-            process_thread = Globals.thread_holder[dnn_id]
-            process_thread.halt()
-
-            logging.info(f"Halted Task: {dnn_id}")
-            logging.info(f"CoreMap: {Globals.core_map}")
-
-            for i in range(0, len(Globals.core_map.keys())):
-                if Globals.core_map[i] == dnn_id:
-                    Globals.core_map[i] = ""
-
-            del Globals.thread_holder[dnn_id]
-        del Globals.dnn_hold_dict[dnn_id]
+    Globals.halt_queue.append(json_request_body["dnn_id"])
     return
 
-#@profile(stream=Globals.inference_mem_prof)
 def general_allocate_and_forward_function(json_request_body):
-
-    logging.info(f"REST: ALLOCATE - REQUEST COUNTER {json_request_body['request_counter']}")
     
     if not json_request_body["success"]:
-        Globals.work_request_lock.release()
         return
 
-    dnn_task = HighCompResult.HighCompResult()
-    dnn_task.generateFromDict(json_request_body["dnn"])
-
-    logging.info(f"DEADLINE: {dnn_task.estimated_finish}")
+    logging.info(f"DEADLINE: {DataProcessing.from_ms_since_epoch(json_request_body['dnn']['finish_time'])}")
     logging.info(f"CURRENT_TIME: {dt.now()}")
-
-    image_data = None
     
-    if dnn_task.allocated_host != "self":
-        logging.info(f"REQUESTING DATA: http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
-        image_data = requests.get(f"http://{dnn_task.source_host}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
-        logging.info(f"DATA Transferred: {dnn_task.allocated_host}")
+    if json_request_body["dnn"]["allocated_host"] != "self":
+        logging.info(f"REQUESTING DATA: http://{json_request_body['dnn']['source_host']}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}")
+        OutboundComms.getImage(json_request_body['dnn']['source_host'])
+        logging.info(f"DATA Transferred: {json_request_body['dnn']['source_host']}")
 
-    logging.info(f"DNN_N {dnn_task.n} DNN_M {dnn_task.m}")
-    Globals.work_request_lock.release()
+    logging.info(f"DNN_N {json_request_body['dnn']['N']} DNN_M {json_request_body['dnn']['M']}")
 
-    partition_and_process(
-        dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+    WorkWaitingQueue.add_task(work_item={
+        "start_time": DataProcessing.from_ms_since_epoch(
+            json_request_body["dnn"]["start_time"]),
+        "N": int(json_request_body["dnn"]["N"]),
+        "M": int(json_request_body["dnn"]["M"]),
+        "cores": int(json_request_body["dnn"]["M"]) * int(json_request_body["dnn"]["N"]),
+        "TaskID": json_request_body["dnn"]["dnn_id"],
+        "finish_time": DataProcessing.from_ms_since_epoch(json_request_body["dnn"]["finish_time"])
+    })
 
-def task_allocation_function(json_request_body):
-    dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
-    dnn_task.generateFromDict(json_request_body)
 
-    partition_and_process(dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
-    return
-
-#@profile(stream=Globals.inference_mem_prof)
-def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_convidx: str, input_data: bytes, input_shape: list):
-    load_data: dict = {}
-
-    partition_data = {}
-    work_item = { # type: ignore
-        "start_time": dnn_task.estimated_start,
-        "N": dnn_task.n,
-        "M": dnn_task.m,
-        "cores": dnn_task.n * dnn_task.m,
-        "TaskID": dnn_task.dnn_id,
-        "finish_time": dnn_task.estimated_finish
-    }
-
-    # if not DataProcessing.check_if_dnn_halted(dnn_id=dnn_task.dnn_id, dnn_version=dnn_task.version):
-    Globals.dnn_hold_dict[dnn_task.dnn_id] = dnn_task
-
-    WorkWaitingQueue.add_task(work_item=work_item)
+def capacity_gatherer():
+    cap = 0
+    for usage in Globals.core_map.values():
+        if len(usage) != 0:
+            cap += 1
+    return cap

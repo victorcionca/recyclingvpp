@@ -12,5 +12,4 @@ def run_IperfServer():
     server.verbose = True
     server.json_output = False
 
-    # while True:
     server.run()

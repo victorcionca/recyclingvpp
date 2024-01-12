@@ -1,6 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer, SimpleHTTPRequestHandler
 import json
-from socketserver import ThreadingMixIn
 import logging
 from datetime import datetime as dt
 import Constants
@@ -11,27 +10,16 @@ import utils
 import random
 hostName = "localhost"
 
-
-class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-    pass
+ifp = open(Constants.INITIAL_FILE_PATH, 'rb')
+image_content = ifp.read()
+ifp.close()
 
 class RestInterface(SimpleHTTPRequestHandler):
-
-    def _set_response(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
 
     def do_GET(self):
         logging.info(f"GET RECEIVED: {self.path}")
         if self.path == Constants.GET_IMAGE:
             try:
-                image_content = None
-                # Open and read the image file
-                with open(Constants.INITIAL_FILE_PATH, 'rb') as f:
-                    image_content = f.read()
-
-
                 # Set the content type to 'image/jpeg'
                 self.send_response(200)
                 self.send_header('Content-type', 'image/png')
@@ -55,10 +43,6 @@ class RestInterface(SimpleHTTPRequestHandler):
 
         response_code = 200
 
-        self.send_response(response_code)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-
         self.wfile.write(bytes(response_json, "utf8"))
 
         try:
@@ -73,6 +57,10 @@ class RestInterface(SimpleHTTPRequestHandler):
             logging.info(f"Received request was not json: {request_str}")
             response_code = 400
             return
+        
+        self.send_response(response_code)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
 
         # self.send_response(response_code)
         # self.send_header('Content-type', 'application/json')
@@ -132,7 +120,7 @@ def from_ms_since_epoch(ms: str) -> dt:
     return dt.fromtimestamp(int(ms) / 1000.0)
 
 
-def run_server(server_class=ThreadedHTTPServer, handler_class=RestInterface, port=Constants.EXPERIMENT_INFERFACE):
+def run_server(server_class=HTTPServer, handler_class=RestInterface, port=Constants.EXPERIMENT_INFERFACE):
     logging.basicConfig(level=logging.INFO)
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)

@@ -1,6 +1,5 @@
 import threading
 import logging
-import OutboundComms
 import WorkWaitingQueue
 import rest_server
 import iperf_server
@@ -9,10 +8,12 @@ import Constants
 import ResultQueueManager
 import ntplib
 import os
+import Globals
 from datetime import datetime
 import sys
 import Constants
 import PollingThread
+import traceback
 
 
 def start_REST(logging):
@@ -23,8 +24,8 @@ def start_IPERF(logging):
     ThreadStart(logging, iperf_server.run_IperfServer, "IPERF")
 
 
-def start_ResultsQueueManager(logging):
-    ThreadStart(logging, ResultQueueManager.ResultsQueueLoop, "ResultsQueue")
+def start_main_loop(logging):
+    ThreadStart(logging, main_loop, "loop")
 
 
 def ThreadStart(logging, function, thread_name):
@@ -44,18 +45,37 @@ def hello(logging):
     requests.post(endpoint)
 
 
-def startOutboundComms(logging):
-    ThreadStart(logging, OutboundComms.outbound_comm_loop,
-                "Outbound Comm Loop")
+
+def main_loop():
+    while Globals.work_request_lock.locked():
+        continue
+
+    while True:
+        acquire_lock_run(PollingThread.stealing_loop, "Poller")
+        acquire_lock_run(ResultQueueManager.ResultsQueueLoop, "ResultQueue")
+        acquire_lock_run(WorkWaitingQueue.worker_watcher, "WorkWatcher")
+        acquire_lock_run(WorkWaitingQueue.halt_function, "HaltStage")
+        acquire_lock_run(WorkWaitingQueue.work_loop, "WorkWaiting")
 
 
-def start_WorkWaitingQueue(logging):
-    ThreadStart(logging, WorkWaitingQueue.work_loop, "Work Waiting Queue")
+def acquire_lock_run(function, function_name):
+    Globals.queue_locker = function_name
+    old_lk = Globals.lock_counter
+    Globals.lock_counter += 1
+    
+    try:
+        function()
+    except Exception as e:
+        logging.info(f"CORE_MAP: {Globals.core_map}\n")
+        logging.info(f"WORK WAITING QUEUE: {Globals.work_waiting_queue}\n")
+        logging.info(f"THREAD_HOLDER: {Globals.thread_holder}")
+        logging.info(f"REQUEST_VERSION_DICT: {Globals.request_version_list}")
 
+        print(e)
+        print(traceback.format_exc())
+        exit()
 
-def start_WorkStealing(logging):
-    ThreadStart(logging, PollingThread.stealing_loop(), "Work Stealing Poll")
-
+    Globals.queue_locker = "N/A"
 
 def sync_timestamp():
     retry = True
@@ -92,14 +112,10 @@ def main():
         Constants.CONTROLLER_HOST_NAME = sys.argv[2]
 
     start_IPERF(logging)
-    
     sync_timestamp()
     start_REST(logging)
-    start_ResultsQueueManager(logging)
-    startOutboundComms(logging)
-    start_WorkWaitingQueue(logging)
     hello(logging)
-    start_WorkStealing(logging)
+    start_main_loop(logging)
 
     return
 

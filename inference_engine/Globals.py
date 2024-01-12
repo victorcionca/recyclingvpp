@@ -1,28 +1,18 @@
 import threading
-import queue
 from multiprocessing import Queue
-from typing import Dict, List
-import OutboundComm
+from typing import Dict, List, Any
 import inference_engine_e2e_with_ipc
-import HighCompResult
 import threading
 
 import InferenceTestObj
 
-inference_mem_prof=open('/home/pi/recyclingvpp/inference_memory_profile.log','w+')
-
 work_queue_lock = threading.Lock()
+request_counter = 0
+request_version_list = {}
 queue_locker = "N/A"
 
 # Results queue
 results_queue = Queue()
-
-# Outbound net-communications queue
-# Two types of comm, state update and outbound comms
-net_outbound_list: List[OutboundComm.OutboundComm] = []
-
-# This holds dnns inbetween the task being sent to processing and the result being generated
-dnn_hold_dict: Dict[str, HighCompResult.HighCompResult] = {}
 
 # This holds a queue of tasks to be processed,
 # ensures that tasks are only added to the work
@@ -33,11 +23,11 @@ host_name = ""
 
 # Used to hold our map of cores in use
 # key is the core, value is the task using it
-core_map: Dict[int, str] = {
-    0: "",
-    1: "",
-    2: "",
-    3: ""
+core_map :Dict[int, List[Any]] = {
+    0: [],
+    1: [],
+    2: [],
+    3: []
 }
 
 # Stops the polling thread from sending requests,
@@ -56,3 +46,5 @@ thread_holder_inference: Dict[str, inference_engine_e2e_with_ipc.PartitionProces
 thread_holder = thread_holder_inference
 
 lock_counter = 0
+
+halt_queue: List[str] = []
