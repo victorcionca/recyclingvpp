@@ -20,3 +20,7 @@ SET_A_OR_B = False
 event_queue: List[Dict] = []
 queue_lock = threading.Lock()
 trace_list = []
+
+deadline = dt.now()
+dnn_id_counter = 0
+current_trace_item = -2

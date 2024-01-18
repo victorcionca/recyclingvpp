@@ -23,6 +23,8 @@ def ResultsQueueLoop():
     for i in range(0, Constants.CORE_COUNT):
         if len(Globals.core_map[i]) != 0 and Globals.core_map[i][0] == task_id:
             Globals.core_map[i] = []
+            if Globals.local_capacity > 0:
+                Globals.local_capacity -= 1
             
     logging.info(f"ResultsQueueManager: CoreMap: {Globals.core_map}")
 

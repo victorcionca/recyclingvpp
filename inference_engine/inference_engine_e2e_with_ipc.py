@@ -156,7 +156,7 @@ class PartitionProcess(threading.Thread):
         # Kill the subprocesses
         for handler in self.handlers:
             handler.kill()
-            # handler.join()
+            handler.join()
 
     def run(self):
         # Go through the chain of models

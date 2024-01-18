@@ -37,11 +37,8 @@ def main():
         # Display the arguments
         print(f"Arguments for {client}: Index={index_expr}, Arg1={first_arg_expr}, Arg2={second_arg_expr}, Arg3={third_arg_expr}")
 
-        # First tab: run_experiment.sh
-        open_iterm2_tab(f'ssh {username}@{client} \'cd {recyclingvpp_directory} && ./run_experiment.sh {index_expr} {first_arg_expr} {second_arg_expr} {third_arg_expr}\'')
-
         # Second tab: run_inference.sh
-        open_iterm2_tab(f'ssh {username}@{client} \'cd {recyclingvpp_directory} && {inference_program} {client} {controller_hostname}\'')
+        open_iterm2_tab(f'ssh {username}@{client} \'cd {recyclingvpp_directory} && {inference_program} {index_expr} {first_arg_expr} {second_arg_expr} {controller_hostname} {client}\'')
 
 if __name__ == "__main__":
     main()

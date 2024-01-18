@@ -2,9 +2,10 @@ import Globals
 import Constants
 from datetime import datetime as dt, timedelta
 import inference_engine_e2e_with_ipc
+
 # import InferenceTestObj
 from threading import Thread
-import rest_functions
+import utils
 import OutboundComm
 import OutboundComms
 import logging
@@ -22,23 +23,29 @@ import OutboundCommTypes
 
 load_result = inference_engine_e2e_with_ipc.LoadImage(None, ["0"])
 
+
 def work_loop():
     if len(Globals.work_waiting_queue) == 0:
         return
     else:
-        logging.info("Work available")
+        logging.info(f"Work available {Globals.work_waiting_queue}")
 
-    if rest_functions.capacity_gatherer() + Globals.work_waiting_queue[0][
-        "cores"] > Constants.CORE_COUNT:
-        logging.info("Capacity Filled")
+    if (
+        utils.capacity_gatherer() + Globals.work_waiting_queue[0]["cores"]
+        > Constants.CORE_COUNT
+    ):
+        logging.info(f"Capacity Filled {Globals.work_waiting_queue[0]['cores']}")
         return
     else:
-        logging.info("Capacity Available")
+        logging.info(f"Capacity Available {utils.capacity_gatherer()}")
 
     free_cores = []
 
     for core, task_id in Globals.core_map.items():
-        if len(task_id) == 0  and len(free_cores) < Globals.work_waiting_queue[0]["cores"]:
+        if (
+            len(task_id) == 0
+            and len(free_cores) < Globals.work_waiting_queue[0]["cores"]
+        ):
             free_cores.append(core)
 
     work_item = Globals.work_waiting_queue.pop(0)
@@ -55,13 +62,16 @@ def start_PartitionProcess(work_item, free_cores):
     logging.info(f"TASK CREATE: \t{work_item['TaskID']} - {dt.now()}")
 
     # ["data", "shape", "N", "M", "cores", "TaskID"]
-    x = inference_engine_e2e_with_ipc.PartitionProcess({
-        "data": load_result["data"],
-        "shape": load_result["shape"],
-        "N": work_item["N"],
-        "M": work_item["M"],
-        "cores": free_cores,
-        "TaskID": work_item["TaskID"]})
+    x = inference_engine_e2e_with_ipc.PartitionProcess(
+        {
+            "data": load_result["data"],
+            "shape": load_result["shape"],
+            "N": work_item["N"],
+            "M": work_item["M"],
+            "cores": free_cores,
+            "TaskID": work_item["TaskID"],
+        }
+    )
 
     # x = InferenceTestObj.InferenceTestObj({
     #     "N": work_item["N"],
@@ -81,19 +91,25 @@ def add_task(work_item: dict):
 
 
 def worker_watcher():
+    task_id_fin_time_mapping = {
+        id_time_pair[0]: id_time_pair[1]
+        for id_time_pair in Globals.core_map.values()
+        if len(id_time_pair) != 0
+    }
 
-    task_id_fin_time_mapping = {id_time_pair[0]: id_time_pair[1] for id_time_pair in Globals.core_map.values() if len(id_time_pair) != 0 }
-
-    for dnn_id, fin_time in task_id_fin_time_mapping.items() :
+    for dnn_id, fin_time in task_id_fin_time_mapping.items():
         if fin_time < dt.now():
             Globals.halt_queue.append(dnn_id)
             logging.info(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
             logging.info(f"TASK EXCPT: \t{dnn_id} - {fin_time}")
 
-            
-            state_update_comm = OutboundComm.OutboundComm(comm_time=dt.now(),
-                                                            comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE,
-                                                            payload={"dnn_id": dnn_id}, dnn_id=dnn_id, version=-10)
+            state_update_comm = OutboundComm.OutboundComm(
+                comm_time=dt.now(),
+                comm_type=OutboundCommTypes.OutboundCommType.VIOLATED_DEADLINE,
+                payload={"dnn_id": dnn_id},
+                dnn_id=dnn_id,
+                version=-10,
+            )
             OutboundComms.deadlineViolated(comm_item=state_update_comm)
     return
 
@@ -112,6 +128,8 @@ def halt_function():
             for i in range(0, len(Globals.core_map.keys())):
                 if len(Globals.core_map[i]) != 0 and Globals.core_map[i][0] == dnn_id:
                     Globals.core_map[i] = []
+                    if Globals.local_capacity > 0:
+                        Globals.local_capacity -= 1
 
             del Globals.thread_holder[dnn_id]
         return

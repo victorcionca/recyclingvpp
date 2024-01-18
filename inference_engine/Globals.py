@@ -8,7 +8,7 @@ import InferenceTestObj
 
 work_queue_lock = threading.Lock()
 request_counter = 0
-request_version_list = {}
+request_version_list = []
 queue_locker = "N/A"
 
 # Results queue
@@ -48,3 +48,5 @@ thread_holder = thread_holder_inference
 lock_counter = 0
 
 halt_queue: List[str] = []
+
+local_capacity = 0
