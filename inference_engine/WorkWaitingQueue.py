@@ -28,16 +28,16 @@ def work_loop():
     if len(Globals.work_waiting_queue) == 0:
         return
     else:
-        logging.info(f"Work available {Globals.work_waiting_queue}")
+        logging.info("Work available")
 
     if (
         utils.capacity_gatherer() + Globals.work_waiting_queue[0]["cores"]
         > Constants.CORE_COUNT
     ):
-        logging.info(f"Capacity Filled {Globals.work_waiting_queue[0]['cores']}")
+        logging.info("Capacity Filled")
         return
     else:
-        logging.info(f"Capacity Available {utils.capacity_gatherer()}")
+        logging.info("Capacity Available")
 
     free_cores = []
 
@@ -51,7 +51,7 @@ def work_loop():
     work_item = Globals.work_waiting_queue.pop(0)
 
     for i in free_cores:
-        Globals.core_map[i] = [work_item["TaskID"], work_item["finish_time"]]
+        Globals.core_map[i] = work_item
 
     start_PartitionProcess(work_item, free_cores)
 
@@ -84,6 +84,7 @@ def start_PartitionProcess(work_item, free_cores):
     Globals.thread_holder[work_item["TaskID"]] = x
 
     x.start()
+    Globals.local_capacity += int(work_item["N"]) * int(work_item["M"])
 
 
 def add_task(work_item: dict):
@@ -92,16 +93,16 @@ def add_task(work_item: dict):
 
 def worker_watcher():
     task_id_fin_time_mapping = {
-        id_time_pair[0]: id_time_pair[1]
-        for id_time_pair in Globals.core_map.values()
-        if len(id_time_pair) != 0
+        work_item["TaskID"]: work_item
+        for work_item in Globals.core_map.values()
+        if len(work_item.keys()) != 0
     }
 
-    for dnn_id, fin_time in task_id_fin_time_mapping.items():
-        if fin_time < dt.now():
+    for dnn_id, work_item in task_id_fin_time_mapping.items():
+        if work_item["finish_time"] < dt.now():
             Globals.halt_queue.append(dnn_id)
             logging.info(f"TASK VIOL: \t{dnn_id} - {dt.now()}")
-            logging.info(f"TASK EXCPT: \t{dnn_id} - {fin_time}")
+            logging.info(f"TASK EXCPT: \t{dnn_id} - {work_item['finish_time']}")
 
             state_update_comm = OutboundComm.OutboundComm(
                 comm_time=dt.now(),
@@ -126,10 +127,9 @@ def halt_function():
             logging.info(f"CoreMap: {Globals.core_map}")
 
             for i in range(0, len(Globals.core_map.keys())):
-                if len(Globals.core_map[i]) != 0 and Globals.core_map[i][0] == dnn_id:
-                    Globals.core_map[i] = []
-                    if Globals.local_capacity > 0:
-                        Globals.local_capacity -= 1
+                if len(Globals.core_map[i].keys()) != 0 and Globals.core_map[i]["TaskID"] == dnn_id:
+                    Globals.core_map[i] = {}
+                    Globals.local_capacity -= 1
 
             del Globals.thread_holder[dnn_id]
         return

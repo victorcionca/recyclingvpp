@@ -21,34 +21,35 @@ def general_allocate_and_forward_function(json_request_body):
         return
 
     logging.info(
-        f"DEADLINE: {DataProcessing.from_ms_since_epoch(json_request_body['dnn']['finish_time'])}"
+        f"DEADLINE: {DataProcessing.from_ms_since_epoch(json_request_body['finish_time'])}"
     )
     logging.info(f"CURRENT_TIME: {dt.now()}")
 
-    if json_request_body["dnn"]["allocated_host"] != "self":
+    if json_request_body["allocated_host"] != "self":
         logging.info(
-            f"REQUESTING DATA: http://{json_request_body['dnn']['source_host']}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}"
+            f"REQUESTING DATA: http://{json_request_body['source_host']}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}"
         )
-        OutboundComms.getImage(json_request_body["dnn"]["source_host"])
-        logging.info(f"DATA Transferred: {json_request_body['dnn']['source_host']}")
+        OutboundComms.getImage(json_request_body["source_host"])
+        logging.info(f"DATA Transferred: {json_request_body['source_host']}")
 
     logging.info(
-        f"DNN_N {json_request_body['dnn']['N']} DNN_M {json_request_body['dnn']['M']}"
+        f"DNN_N {json_request_body['N']} DNN_M {json_request_body['M']}"
     )
 
     WorkWaitingQueue.add_task(
         work_item={
             "start_time": DataProcessing.from_ms_since_epoch(
-                json_request_body["dnn"]["start_time"]
+                json_request_body["start_time"]
             ),
-            "N": int(json_request_body["dnn"]["N"]),
-            "M": int(json_request_body["dnn"]["M"]),
-            "cores": int(json_request_body["dnn"]["M"])
-            * int(json_request_body["dnn"]["N"]),
-            "TaskID": json_request_body["dnn"]["dnn_id"],
+            "N": int(json_request_body["N"]),
+            "M": int(json_request_body["M"]),
+            "cores": int(json_request_body["M"])
+            * int(json_request_body["N"]),
+            "TaskID": json_request_body["dnn_id"],
             "finish_time": DataProcessing.from_ms_since_epoch(
-                json_request_body["dnn"]["finish_time"]
+                json_request_body["finish_time"]
             ),
+            "deadline": DataProcessing.from_ms_since_epoch(json_request_body["deadline"])
         }
     )
 

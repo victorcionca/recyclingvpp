@@ -5,10 +5,13 @@ import utils
 from typing import Dict, Any
 from fastapi.responses import FileResponse
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from uvicorn import run
 from datetime import datetime as dt
 from datetime import timedelta as td
+import HighCompAlloFunctions
+import DataProcessing
+
 
 app = FastAPI()
 
@@ -16,10 +19,35 @@ app = FastAPI()
 def search_and_prune_version(request_version):
     if request_version in Globals.request_version_list:
         return True
-    
+
     else:
         Globals.request_version_list.append(request_version)
         return False
+
+
+@app.post(Constants.REQUEST_WORK)
+async def work_request(request: Request):
+    if request.client is not None:
+        hostname = request.client.host
+        req_body = await request.json()
+        capacity = int(req_body["capacity"])
+        result = HighCompAlloFunctions.task_search(capacity, hostname)
+
+        return result
+    else:
+        return {"success": False}
+
+
+@app.post(Constants.RETURN_WORK)
+def return_work(item: Dict[Any, Any]):
+    tasks = [
+        {
+            "dnn_id": item["dnn_id"],
+            "deadline": DataProcessing.from_ms_since_epoch(item["deadline"]),
+        }
+    ]
+    HighCompAlloFunctions.add_high_comp_to_stealing_queue(tasks)
+    return
 
 
 @app.post(Constants.TASK_ALLOCATION)
@@ -37,7 +65,7 @@ def halt_task(item: Dict[Any, Any]):
         rest_functions.halt_endpoint(item)
     else:
         logging.info(f"Duplicate Request: {item['request_version']}")
-    
+
     return {}
 
 
@@ -47,13 +75,15 @@ def add_low_task(item: Dict[Any, Any]):
         rest_functions.allocate_low_task(item)
     else:
         logging.info(f"Duplicate Request: {item['request_version']}")
-    
+
     return {}
 
 
 @app.post(Constants.SET_EXPERIMENT_START)
 def experiment_start(item: Dict[Any, Any]):
     logging.info(item)
+    Globals.client_list = item["client_list"]
+    Globals.bytes_per_ms = int(item["bytes_per_ms"])
     rest_functions.set_experiment_start_time(item)
     return
 
@@ -68,9 +98,11 @@ def experi_strt():
 def get_cores():
     return {
         "CORE_MAP": f"{Globals.core_map}",
-        "CORE_CAP": {utils.capacity_gatherer()},
+        "CORE_CAP_GATHER": {utils.capacity_gatherer()},
+        "LOCAL_CORE_CAP": {Globals.local_capacity},
         "REQUEST_LOCKED": {Globals.work_request_lock.locked()},
         "WORK_QUEUE_LOCKED": {Globals.queue_locker},
+        "CLIENT_LIST": {tuple(Globals.client_list)},
     }
 
 

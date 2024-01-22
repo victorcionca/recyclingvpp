@@ -23,11 +23,11 @@ host_name = ""
 
 # Used to hold our map of cores in use
 # key is the core, value is the task using it
-core_map :Dict[int, List[Any]] = {
-    0: [],
-    1: [],
-    2: [],
-    3: []
+core_map :Dict[int, Dict[str, Any]] = {
+    0: {},
+    1: {},
+    2: {},
+    3: {}
 }
 
 # Stops the polling thread from sending requests,
@@ -50,3 +50,12 @@ lock_counter = 0
 halt_queue: List[str] = []
 
 local_capacity = 0
+
+client_list: List[str] = []
+
+low_active = False
+
+work_stealing_queue = []
+work_stealing_lock = threading.Lock()
+
+bytes_per_ms = 0

@@ -11,8 +11,13 @@ def add_task_to_event_queue(event_item: dict):
 
 
 def capacity_gatherer():
+    # return Globals.local_capacity
     cap = 0
     for usage in Globals.core_map.values():
-        if len(usage) != 0:
+        if len(usage.keys()) != 0:
             cap += 1
-    return cap
+    return cap + int(Globals.low_active) # type: ignore
+
+
+def parse_source_device_id(dnn_id: str):
+    return dnn_id.split("_")[0]

@@ -55,6 +55,7 @@ def main_loop():
 
     while True:
         acquire_lock_run(experiment_func.run_loop, "Experiment Loop")
+        acquire_lock_run(WorkWaitingQueue.halt_function, "HaltStage")
         acquire_lock_run(PollingThread.stealing_loop, "Poller")
         acquire_lock_run(ResultQueueManager.ResultsQueueLoop, "ResultQueue")
         acquire_lock_run(WorkWaitingQueue.worker_watcher, "WorkWatcher")
