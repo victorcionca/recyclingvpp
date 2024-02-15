@@ -76,8 +76,8 @@ def acquire_lock_run(function, function_name):
         logging.info(f"THREAD_HOLDER: {Globals.thread_holder}")
         logging.info(f"REQUEST_VERSION_DICT: {Globals.request_version_list}")
 
-        print(e)
-        print(traceback.format_exc())
+        logging.info(e)
+        logging.info(traceback.format_exc())
         exit()
 
     Globals.queue_locker = "N/A"

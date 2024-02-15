@@ -26,16 +26,12 @@ def search_and_prune_version(request_version):
 
 
 @app.post(Constants.REQUEST_WORK)
-async def work_request(request: Request):
-    if request.client is not None:
-        hostname = request.client.host
-        req_body = await request.json()
-        capacity = int(req_body["capacity"])
-        result = HighCompAlloFunctions.task_search(capacity, hostname)
+def work_request(item: Dict):
+    hostname = item["source"]
+    capacity = int(item["capacity"])
+    result = HighCompAlloFunctions.task_search(capacity, hostname)
 
-        return result
-    else:
-        return {"success": False}
+    return result
 
 
 @app.post(Constants.RETURN_WORK)
@@ -46,7 +42,7 @@ def return_work(item: Dict[Any, Any]):
             "deadline": DataProcessing.from_ms_since_epoch(item["deadline"]),
         }
     ]
-    HighCompAlloFunctions.add_high_comp_to_stealing_queue(tasks)
+    HighCompAlloFunctions.add_high_comp_to_stealing_queue(tasks, dt.now())
     return
 
 

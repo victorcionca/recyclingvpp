@@ -4,9 +4,7 @@ from typing import List, Tuple
 import Globals
 
 
-def from_ms_since_epoch(ms: str) -> datetime:
-    if isinstance(ms, str):
-        ms = ms.split(".")[0]
+def from_ms_since_epoch(ms: int) -> datetime:
     return datetime.fromtimestamp(int(ms) / 1000.0)
 
 

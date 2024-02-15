@@ -25,7 +25,7 @@ def deadlineViolated(
                     logging.info("ERROR REQUEST NOT RECEIVED")
                     success = False
             except Exception as e:
-                logging.info(f"Outbound: Failed to reach contr - {e}")
+                logging.info(f"DEADLINE VIOLATED Outbound: Failed to reach contr - {e}")
     return
 
 
@@ -54,7 +54,8 @@ def stateUpdate(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm
                 requests.post(url, json=payload)
                 success = True
             except:
-                logging.info(f"Outbound: Failed to reach contr")
+                logging.info(f"STATE UPDATE Outbound: Failed to reach contr")
+                logging.info(payload)
     logging.info(f"State_update success {url}")
     return
 
@@ -66,22 +67,23 @@ def PollingRequest(request_counter, local_capacity, client):
         "request_counter": request_counter,
         "capacity": local_capacity,
         "request_id": f"{dt.now().timestamp()}",
+        "source": Constants.CLIENT_ADDRESS
     }
     headers = {
         "Content-Type": "application/json",
     }
-    response = {"success": False}
+    response_body = {"success": False}
     while not success:
         try:
-            response = requests.post(url, json=body, headers=headers).json()
-
+            response = requests.post(url, json=body, headers=headers)
+            response_body = response.json()
             success = True
             if response.status_code != 200:
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            logging.info(f"ELoop: Failed to reach contr - {e}")
-    return response
+            logging.info(f"POLLING REQUEST ELoop: Failed to reach client - {e}")
+    return response_body
 
 
 def low_comp_allocation_fail(dnn_id: str):
@@ -104,7 +106,7 @@ def low_comp_allocation_fail(dnn_id: str):
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            print(f"ELoop: Failed to reach contr - {e}")
+            print(f"LOW COMP FAIL ELoop: Failed to reach contr - {e}")
 
     logging.info(f"POSTED LOW COMP FAIL {dnn_id}")
 
@@ -132,7 +134,7 @@ def return_work_to_client(dnn_id: str, deadline: dt):
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            print(f"ELoop: Failed to reach contr - {e}")
+            print(f"RETURN WORK ELoop: Failed to reach client - {e}")
 
     logging.info(f"RETURNED WORK {dnn_id}")
 
@@ -159,7 +161,7 @@ def post_halt_controller(dnn_id: str):
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            print(f"ELoop: Failed to reach contr - {e}")
+            print(f"POST HALT ELoop: Failed to reach contr - {e}")
 
     logging.info(f"POSTED HALT {dnn_id}")
 
@@ -190,7 +192,7 @@ def post_low_task(start_time: dt, finish_time: dt, dnn_id: str, invoke_preemptio
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            print(f"ELoop: Failed to reach contr - {e}")
+            print(f"POST LOW TASK ELoop: Failed to reach contr - {e}")
 
     logging.info(f"POSTED LOW COMP DNN {dnn_id}")
 
@@ -199,6 +201,7 @@ def issue_low_comp_update(dnn_id: str, time: dt):
     data = {
         "dnn_id": dnn_id,
         "finish_time": int(dt.now().timestamp() * 1000),
+        "type": "low",
         "request_id": f"{dt.now().timestamp()}",
     }
 
@@ -219,19 +222,13 @@ def issue_low_comp_update(dnn_id: str, time: dt):
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            print(f"ELoop: Failed to reach contr - {e}")
+            print(f"ISSUE_LOW_UPDATE ELoop: Failed to reach contr - {e}")
 
     print(f"DNN RESULT {data}")
     return
 
 
-def generate_high_comp_request(deadline: dt, dnn_id: int, task_count: int):
-    data = {
-        "dnn_id": str(dnn_id),
-        "deadline": int(deadline.timestamp() * 1000),
-        "task_count": task_count,
-        "request_id": f"{dt.now().timestamp()}",
-    }
+def generate_high_comp_request(task_body: dict):
 
     headers = {
         "Content-Type": "application/json",
@@ -242,13 +239,13 @@ def generate_high_comp_request(deadline: dt, dnn_id: int, task_count: int):
     success = False
     while not success:
         try:
-            response = requests.post(url, json=data, headers=headers)
+            response = requests.post(url, json=task_body, headers=headers)
             success = True
 
             if response.status_code != 200:
                 logging.info("ERROR REQUEST NOT RECEIVED")
                 success = False
         except Exception as e:
-            logging.info(f"ELoop: Failed to reach contr - {e}")
+            logging.info(f"GENERATE_HIGH_COMP: ELoop: Failed to reach contr - {e}")
 
     return

@@ -21,11 +21,11 @@ def general_allocate_and_forward_function(json_request_body):
         return
 
     logging.info(
-        f"DEADLINE: {DataProcessing.from_ms_since_epoch(json_request_body['finish_time'])}"
+        f"DEADLINE: {DataProcessing.from_ms_since_epoch(int(json_request_body['finish_time']))}"
     )
     logging.info(f"CURRENT_TIME: {dt.now()}")
 
-    if json_request_body["allocated_host"] != "self":
+    if json_request_body["allocated_host"] != Constants.CLIENT_ADDRESS:
         logging.info(
             f"REQUESTING DATA: http://{json_request_body['source_host']}:{Constants.EXPERIMENT_INFERFACE}{Constants.GET_IMAGE}"
         )
@@ -39,7 +39,7 @@ def general_allocate_and_forward_function(json_request_body):
     WorkWaitingQueue.add_task(
         work_item={
             "start_time": DataProcessing.from_ms_since_epoch(
-                json_request_body["start_time"]
+                int(json_request_body["start_time"])
             ),
             "N": int(json_request_body["N"]),
             "M": int(json_request_body["M"]),
@@ -47,9 +47,9 @@ def general_allocate_and_forward_function(json_request_body):
             * int(json_request_body["N"]),
             "TaskID": json_request_body["dnn_id"],
             "finish_time": DataProcessing.from_ms_since_epoch(
-                json_request_body["finish_time"]
+                int(json_request_body["finish_time"])
             ),
-            "deadline": DataProcessing.from_ms_since_epoch(json_request_body["deadline"])
+            "deadline": DataProcessing.from_ms_since_epoch(int(json_request_body["deadline"]))
         }
     )
 
@@ -62,7 +62,7 @@ def allocate_low_task(json_request: dict) -> None:
         finish_time = DataProcessing.from_ms_since_epoch(json_request["finish_time"])
     else:
         finish_time = DataProcessing.from_ms_since_epoch(
-            str(json_request["finish_time"])
+            int(json_request["finish_time"])
         )
 
     logging.info(f'{finish_time.strftime("%Y-%m-%d %H:%M:%S:%f")} LOW COMP ALLO FIN')
@@ -80,10 +80,7 @@ def allocate_low_task(json_request: dict) -> None:
 def set_experiment_start_time(json_request: dict):
     start_time: dt = dt.now()
 
-    if isinstance(json_request["start_time"], str):
-        start_time = DataProcessing.from_ms_since_epoch(json_request["start_time"])
-    else:
-        start_time = DataProcessing.from_ms_since_epoch(str(json_request["start_time"]))
+    start_time = DataProcessing.from_ms_since_epoch(int(json_request["start_time"]))
 
     if Experiment_Globals.SET_A_OR_B:
         start_time = start_time + td(seconds=Constants.FRAME_RATE / 2)

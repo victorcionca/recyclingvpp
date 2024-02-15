@@ -23,6 +23,7 @@ def ResultsQueueLoop():
 
     for i in range(0, Constants.CORE_COUNT):
         if len(Globals.core_map[i].keys()) != 0 and Globals.core_map[i]["TaskID"] == task_id:
+            work_item = Globals.core_map[i]
             Globals.core_map[i] = {}
             Globals.local_capacity -= 1
 
@@ -31,7 +32,10 @@ def ResultsQueueLoop():
     if task_id in Globals.thread_holder.keys():
         del Globals.thread_holder[task_id]
 
-    payload = {"dnn_id": task_id, "finish_time": int(finish_time.timestamp() * 1000)}
+    payload = {}
+    payload["dnn_id"] = task_id
+    payload["finish_time"] = int(finish_time.timestamp() * 1000)
+    payload["type"] = "high"
 
     logging.info(f"TASK FIN: \t{task_id} - {finish_time}")
     state_update_comm = OutboundComm.OutboundComm(
