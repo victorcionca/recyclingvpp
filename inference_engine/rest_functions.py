@@ -1,12 +1,11 @@
-import Constants
 import Globals
-import inference_engine_e2e_with_ipc
-import DataProcessing
 import OutboundComm
 import OutboundComms
 import OutboundCommTypes
 import HighCompResult
 import WorkWaitingQueue
+import traceback
+from datetime import datetime
 
 def halt_endpoint(json_request_body):
     dnn_id = json_request_body["dnn_id"]
@@ -30,18 +29,28 @@ def halt_endpoint(json_request_body):
 
 def general_allocate_and_forward_function(json_request_body):
     dnn_task = HighCompResult.HighCompResult()
-    dnn_task.generateFromDict(json_request_body)
-    if dnn_task.allocated_host != "self":
-        comm_item = OutboundComm.OutboundComm(
-            comm_time=dnn_task.upload_data.start_fin_time[0], comm_type=OutboundCommTypes.OutboundCommType.TASK_FORWARD, payload=dnn_task)
+    try:
+        dnn_task.generateFromDict(json_request_body)
+    
 
-        OutboundComms.add_task_to_queue(comm_item=comm_item)
+        if dnn_task.allocated_host != "self":
+            comm_item = OutboundComm.OutboundComm(
+                comm_time=datetime.fromtimestamp(
+                int(json_request_body["upload_data"]["time_window"]["start"]) / 1000), comm_type=OutboundCommTypes.OutboundCommType.TASK_FORWARD, payload=dnn_task) # type: ignore
 
-    else:
-        partition_and_process(
-            dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+            OutboundComms.add_task_to_queue(comm_item=comm_item)
+
+        else:
+            print(f"GEN ALLO: {json_request_body}")
+            partition_and_process(
+                dnn_task=dnn_task, starting_convidx="1", input_data=bytes(), input_shape=[])
+    except Exception as e:
+        print(f"JSON BODY: {json_request_body}")
+        print(e)
+        traceback.print_exc() 
 
 def task_allocation_function(json_request_body):
+    print(f"TASK ALLO: {json_request_body}")
     dnn_task: HighCompResult.HighCompResult = HighCompResult.HighCompResult()
     dnn_task.generateFromDict(json_request_body)
 
@@ -55,8 +64,8 @@ def partition_and_process(dnn_task: HighCompResult.HighCompResult, starting_conv
     partition_data = {}
     work_item = { # type: ignore
         "start_time": dnn_task.estimated_start,
-        "N": dnn_task.n,
-        "M": dnn_task.m,
+        "N": dnn_task.m,
+        "M": dnn_task.n,
         "cores": dnn_task.n * dnn_task.m,
         "TaskID": dnn_task.dnn_id
     }

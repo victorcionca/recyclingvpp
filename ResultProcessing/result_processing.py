@@ -46,6 +46,11 @@ def generate_event_array(file_name):
                 if dnn_id not in low_comp_last_state_dict:
                     low_comp_last_state_dict[dnn_id] = {}
                 low_comp_last_state_dict[dnn_id][event["event_type"]] = event["time"]
+
+                # if event["event_type"] == "LOW_COMP_ALLOCATION_SUCCESS":
+                #     if event["message_content"]["invoke_preemption"] == True:
+                #         low_comp_last_state_dict[dnn_id]["LOW_COMP_PREMPT_ALLOCATION_SUCCESS"] = 1
+
             else:
                 if event["event_type"] == "HIGH_COMP_REQUEST":
                     dnn_base_id = event["message_content"]["dnn_id"]
@@ -57,13 +62,13 @@ def generate_event_array(file_name):
                         if dnn_id not in high_comp_last_state_dict:
                             high_comp_last_state_dict[dnn_id] = []
                         high_comp_last_state_dict[dnn_id].append(
-                            (event["event_type"], event["time"])
+                            (event["event_type"], event["time"], event)
                         )
                 else:
                     if dnn_id not in high_comp_last_state_dict:
                         high_comp_last_state_dict[dnn_id] = []
                     high_comp_last_state_dict[dnn_id].append(
-                        (event["event_type"], event["time"])
+                        (event["event_type"], event["time"], event)
                     )
     return low_comp_last_state_dict, high_comp_last_state_dict, result_event_array
 
@@ -128,17 +133,42 @@ def low_high_summary_processing(
     high_comp_prempt_success = 0
     high_comp_finish = 0
     high_comp_violated = 0
+    offloaded_high_comp_count = 0
+    offloaded_and_completed = 0
 
     high_comp_allocation_times_initial = []
     high_comp_allocation_times_reallo = generate_high_comp_reallocation_time(event_list)
     halt_dict = generate_halt_breakdown(event_list)
 
+    high_comp_prempt_one_by_two = 0
+    high_comp_prempt_two_by_two = 0
     for dnn_id, dnn_result_map in high_comp_last_state_dict.items():
         dnn_result = [event[0] for event in dnn_result_map]
+        if "HALT_DNN" in dnn_result:
+            if "VIOLATED_DEADLINE" in dnn_result:
+                high_comp_prempt_fail += 1
+            else:
+                high_comp_prempt_success += 1
+            for iter_item in dnn_result_map:
+                if iter_item[0] == "HIGH_COMP_ALLOCATION_SUCCESS":
+                    if iter_item[2]["message_content"]["N"] == 2 and iter_item[2]["message_content"]["M"] == 2:
+                        high_comp_prempt_two_by_two += 1
+                    elif iter_item[2]["message_content"]["N"] == 1 or iter_item[2]["message_content"]["M"] == 1:
+                        high_comp_prempt_one_by_two += 1
+                    break
         if "HIGH_COMP_FINISH" in dnn_result:
             high_comp_finish = high_comp_finish + 1
-        if "OUTBOUND_TASK_ALLOCATION_HIGH" in dnn_result:
+        if "HIGH_COMP_ALLOCATION_SUCCESS" in dnn_result:
             high_comp_success_count = high_comp_success_count + 1
+
+            for iter_item in dnn_result_map:
+                if iter_item[0] == "HIGH_COMP_ALLOCATION_SUCCESS":
+                    if iter_item[2]["message_content"]["dnn"]["allocated_host"] != iter_item[2]["message_content"]["dnn"]["source_host"]:
+                        offloaded_high_comp_count += 1
+                        if "HIGH_COMP_FINISH" in dnn_result:
+                            offloaded_and_completed += 1
+                    break
+                
         if "VIOLATED_DEADLINE" in dnn_result:
             high_comp_violated += 1
         if "HIGH_COMP_ALLOCATION_FAIL" in dnn_result:
@@ -148,20 +178,19 @@ def low_high_summary_processing(
         if "HIGH_COMP_REALLOCATION_FAIL" in dnn_result:
             high_comp_prempt_fail += 1
 
-        if (
-            "HIGH_COMP_ALLOCATION_SUCCESS" in dnn_result
-            and "OUTBOUND_TASK_ALLOCATION_HIGH" in dnn_result
-        ):
-            high_comp_allocation_times_initial.append(
-                dnn_result_map[2][1] - dnn_result_map[0][1]
-            )
+        # if (
+        #     "HIGH_COMP_ALLOCATION_SUCCESS" in dnn_result
+        # ):
+        #     high_comp_allocation_times_initial.append(
+        #         dnn_result_map[2][1] - dnn_result_map[0][1]
+        #     )
 
     avg_high_comp_allocation_times_initial = statistics.mean(
-        high_comp_allocation_times_initial
-    )
+         high_comp_allocation_times_initial
+    ) if len(high_comp_allocation_times_initial) > 0 else 0
     stdev_high_comp_allocation_times_initial = statistics.stdev(
-        high_comp_allocation_times_initial
-    )
+         high_comp_allocation_times_initial
+    ) if len(high_comp_allocation_times_initial) > 0 else 0
 
     if len(high_comp_allocation_times_reallo) == 0:
         high_comp_allocation_times_reallo = [0, 0]
@@ -172,14 +201,14 @@ def low_high_summary_processing(
         high_comp_allocation_times_reallo
     )
 
-    two_by_two_list = []
-    one_by_two_list = []
+    # two_by_two_list = []
+    # one_by_two_list = []
 
-    for item in halt_dict.values():
-        if item == "2_2":
-            two_by_two_list.append(True)
-        else:
-            one_by_two_list.append(True)
+    # for item in halt_dict.values():
+    #     if item == "2_2":
+    #         two_by_two_list.append(True)
+    #     else:
+    #         one_by_two_list.append(True)
 
 
     return {
@@ -205,9 +234,13 @@ def low_high_summary_processing(
             "stdev_high_comp_allocation_times_initial": stdev_high_comp_allocation_times_initial,
             "avg_high_comp_allocation_times_reallo": avg_high_comp_allocation_times_reallo,
             "stdev_high_comp_allocation_times_reallo": stdev_high_comp_allocation_times_reallo,
-            "high_comp_1x2_preemp": len(one_by_two_list),
-            "high_comp_2x2_preemp": len(two_by_two_list),
+            "high_comp_1x2_preemp": high_comp_prempt_one_by_two,
+            "high_comp_2x2_preemp": high_comp_prempt_two_by_two,
         },
+        "general_stats": {
+            "offloaded_tasks": offloaded_high_comp_count,
+            "completed_offloaded_tasks": offloaded_and_completed
+        }
     }
 
 
@@ -228,15 +261,19 @@ def main(file_name, result_name):
     high_comp_dict = set()
 
     for item in event_list:
-        if item["event_type"] == 'OUTBOUND_TASK_ALLOCATION_HIGH':
-            dnn = item["message_content"]["dnn"]
+        if item["event_type"] == 'HIGH_COMP_ALLOCATION_SUCCESS':
+            if "dnn_id" not in item["message_content"].keys():
+                continue
+            dnn = item["message_content"]
 
             if dnn["source_host"] != "allocated_host":
                 high_comp_dict.add(dnn["dnn_id"])
     
     for item in event_list:
         if item["event_type"] == "HIGH_COMP_FINISH":
-            dnn = item["message_content"]["dnn_details"]
+            dnn = item["message_content"]
+            if "dnn_id" not in item["message_content"].keys():
+                continue
             if dnn["dnn_id"] in high_comp_dict:
                 offloaded_and_completed.append(dnn["dnn_id"])
 
@@ -253,10 +290,10 @@ def main(file_name, result_name):
     result_dictionary["general_stats"] = {
         "frames_generated": len(frame_completion),
         "frames_completed": num_frames_completed,
-        "average_high_comp_completed": statistics.mean(average_high_comp_complete_list),
-        "stdev_high_comp_completed": statistics.stdev(average_high_comp_complete_list),
-        "offloaded_tasks": len(high_comp_dict),
-        "completed_offloaded_tasks": len(offloaded_and_completed)
+        "average_high_comp_completed": statistics.mean(average_high_comp_complete_list) if len(average_high_comp_complete_list) > 0 else 0,
+        "stdev_high_comp_completed": statistics.stdev(average_high_comp_complete_list) if len(average_high_comp_complete_list) > 0 else 0,
+        "offloaded_tasks": result_dictionary["general_stats"]["offloaded_tasks"],
+        "completed_offloaded_tasks": result_dictionary["general_stats"]["completed_offloaded_tasks"]
     }
     output_file = open(result_name, "w")
     output_file.write(json.dumps(result_dictionary))
@@ -272,17 +309,20 @@ def generate_frame_completion(event_list):
 
     for i in range(0, len(event_list)):
         print(f"{i} out of {len(event_list)}")
-        if event_list[i]["event_type"] == "LOW_COMP_REQUEST":
+        if event_list[i]["event_type"] not in valid_event_items:
+            continue
+        if event_list[i]["event_type"] == "LOW_COMP_ALLOCATION_SUCCESS":
             result_obj = {
-                "low_comp_id": event_list[i]["message_content"]["dnn_id"],
+                "low_comp_id": event_list[i]["message_content"]["dnn"]["dnn_id"],
                 "low_comp_completed": False,
                 "high_comp_task": False,
-                "frame_completed": False
+                "frame_completed": False,
+                "high_comp_task_count": 0
             }
 
             last_index = -1
             for j in range(i + 1, len(event_list)):
-                if event_list[j]["event_type"] == "LOW_COMP_FINISH" and event_list[j]["message_content"]["dnn_details"]["dnn_id"] == result_obj["low_comp_id"]:
+                if event_list[j]["event_type"] == "LOW_COMP_FINISH" and event_list[j]["message_content"]["dnn"]["dnn_id"] == result_obj["low_comp_id"]:
                     result_obj["low_comp_completed"] = True
                     last_index = j
                     break
@@ -295,18 +335,22 @@ def generate_frame_completion(event_list):
             next_base_id_counter = int(result_obj["low_comp_id"].split("_")[1])
             next_id = f"{device}_{next_base_id_counter + 1}"
 
-            for j in range(last_index + 1, len(event_list)):
-                if event_list[j]["event_type"] == "HIGH_COMP_REQUEST" and event_list[j]["message_content"]["dnn_id"] == next_id:
-                    event_item = event_list[j]
-                    result_obj["high_comp_task"] = True
-                    result_obj["high_comp_base_id"] = next_id
-                    result_obj["high_comp_task_count"] = event_item["message_content"]["task_count"]
-                    result_obj["high_comp_tasks"] = []
+            potential_ids = [f"{device}_{next_base_id_counter + 1}_{affix_id}" for affix_id in range(0, 4)]
 
-                    for y in range(0, result_obj["high_comp_task_count"]):
+            for pot_id in potential_ids:
+                for j in range(last_index + 1, len(event_list)):
+                    if event_list[j]["event_type"] == "HIGH_COMP_ALLOCATION_SUCCESS" and event_list[j]["message_content"]["dnn"]["dnn_id"] == pot_id:
+                        event_item = event_list[j]
+                        
+                        result_obj["high_comp_task_count"] += 1
+                        if result_obj["high_comp_task"] == False:
+                            result_obj["high_comp_task"] = True
+                            result_obj["high_comp_base_id"] = next_id
+                            result_obj["high_comp_tasks"] = []
+
                         for k in range(j + 1, len(event_list)):
-                            if event_list[k]["event_type"] == "HIGH_COMP_FINISH" and event_list[k]["message_content"]["dnn_details"]["dnn_id"] == f"{next_id}_{y}":
-                                result_obj["high_comp_tasks"].append(f"{next_id}_{y}")
+                            if event_list[k]["event_type"] == "HIGH_COMP_FINISH" and event_list[k]["message_content"]["dnn"]["dnn_id"] == pot_id:
+                                result_obj["high_comp_tasks"].append(pot_id)
 
             if result_obj["high_comp_task"] == False:
                 result_obj["frame_completed"] = True
@@ -331,7 +375,10 @@ def generate_halt_breakdown(event_list):
 
     for event_item in event_list:
         if event_item["event_type"] == "OUTBOUND_TASK_ALLOCATION_HIGH":
-            dnn = event_item["message_content"]["dnn"]
+            dnn = event_item["message_content"]["dnn"] if "dnn" in event_item["message_content"].keys() else event_item["message_content"]
+
+            if "dnn_id" not in dnn.keys():
+                continue
             if dnn["dnn_id"] in halt_list and dnn["dnn_id"] not in halt_dict:
                 halt_dict[dnn["dnn_id"]] = f"{dnn['N']}_{dnn['M']}"
     

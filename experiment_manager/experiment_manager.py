@@ -6,9 +6,12 @@ import Constants
 import datetime
 import Globals
 import EventType
+from typing import Dict
+from experiment_loop import issue_bandwidth_results
 import utils
 hostName = "localhost"
 
+version_list = []
 
 class RestInterface(BaseHTTPRequestHandler):
 
@@ -37,10 +40,23 @@ class RestInterface(BaseHTTPRequestHandler):
         try:
             json_request: dict = json.loads(request_body)
 
+            if "request_version" in json_request.keys():
+                if json_request["request_version"] in version_list:
+                    logging.info(f"DUPLICATE REQUEST RECEIVED:\n{json_request}")
+                    response_code = 200
+
+                    self.send_response(response_code)
+                    self.end_headers()
+                    return
+                else:
+                    version_list.append(json_request["request_version"])
+
             if self.path == Constants.ALLOCATE_LOW_TASK:
                 self.allocate_low_task(json_request=json_request)
             if self.path == Constants.SET_EXPERIMENT_START:
                 self.set_experiment_start_time(json_request=json_request)
+            if self.path == Constants.BANDWIDTH_TEST_EP:
+                self.bandwidth_test(json_request=json_request)
 
         except json.JSONDecodeError:
             print(f"Received request was not json: {request_str}")
@@ -53,7 +69,20 @@ class RestInterface(BaseHTTPRequestHandler):
 
         # self.wfile.write(bytes(response_json, "utf8"))
 
-    def allocate_low_task(self, json_request: dict) -> None:
+    def bandwidth_test(self, json_request: Dict):
+        host_list = json_request["hosts"]
+
+        res_list = []
+        print(f"PINGIN: HOST_L {host_list}")
+        for host in host_list:
+            print(f"PINGIN: {host}")
+            res_list += utils.parse_ping_result(utils.ping(host, str(Constants.PING_SIZE)), Constants.BYTES_CALC_SIZE)
+        
+        print(f"PING RES: {res_list}")
+        issue_bandwidth_results(res_list)
+        return
+
+    def allocate_low_task(self, json_request: Dict) -> None:
         dnn_id: str = json_request["dnn_id"]
 
         finish_time: dt = dt.now()
@@ -68,7 +97,7 @@ class RestInterface(BaseHTTPRequestHandler):
             event_item={"event_type": EventType.EventTypes.LOW_COMP_FINISH, "time": finish_time, "dnn_id": dnn_id})
         return
 
-    def set_experiment_start_time(self, json_request: dict):
+    def set_experiment_start_time(self, json_request: Dict):
         start_time: dt = dt.now()
 
         if isinstance(json_request["start_time"], str):

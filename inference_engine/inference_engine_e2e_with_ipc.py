@@ -321,7 +321,10 @@ class InferenceHandler(Process):
         # Create the chain of models
         self.model_list = {}
         self.metadata_list = metadata_list
-        # Load the block input shapes
+    
+
+    def preload(self):
+         # Load the block input shapes
         if self.num_tiles == 4:
             self.output_shapes = pickle.load(open(os.path.join(model_folder,
                                       "e2e_ftp_with_ipc_2x2_shapes.pickle"), 'rb'))
@@ -349,6 +352,8 @@ class InferenceHandler(Process):
             maxpool_model.allocate_tensors()
             self.model_list[block_idx*10] = maxpool_model
         self.prev_tile = None
+
+
 
     def process_tile(self, request):
         # Validate the request
@@ -464,6 +469,7 @@ class InferenceHandler(Process):
         # Pin to the requested core
         os.sched_setaffinity(0, [self.core])
         logging.debug(f"Inference handler {self.core} started")
+        self.preload()
         # Start the processing loop
         self.running = True
         while self.running:

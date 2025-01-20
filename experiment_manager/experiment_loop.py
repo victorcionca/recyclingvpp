@@ -5,6 +5,7 @@ import EventType
 import random
 import requests
 from datetime import datetime as dt
+from typing import List
 
 def run_loop():
     deadline = dt.now()
@@ -47,6 +48,24 @@ def run_loop():
     print("Done")
     return
 
+def issue_bandwidth_results(bits_per_second_list: List[float]):
+    data = {"bits_per_second":bits_per_second_list}
+    url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_BANDWIDTH_UPDATE}"
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    is_failed = True
+
+    while is_failed:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            is_failed = False
+        except:
+            is_failed = True
+    return
+
 def issue_low_comp_update(dnn_id: str, time: dt):
     data = {
         "dnn_id": dnn_id,
@@ -57,8 +76,18 @@ def issue_low_comp_update(dnn_id: str, time: dt):
         "Content-Type": "application/json",
     }
 
+    data["request_version"] = str(dt.now().timestamp())
+
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_STATE_UPDATE}"
-    response = requests.post(url, json=data, headers=headers)
+
+    is_failed = True
+
+    while is_failed:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            is_failed = False
+        except:
+            is_failed = True
     return
 
 def generate_low_comp_request(deadline: datetime.datetime, dnn_id: int):
@@ -71,8 +100,18 @@ def generate_low_comp_request(deadline: datetime.datetime, dnn_id: int):
         "Content-Type": "application/json",
     }
 
+    data["request_version"] = str(dt.now().timestamp())
+
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_LOW_COMP_ALLOCATION}"
-    response = requests.post(url, json=data, headers=headers)
+
+    is_failed = True
+
+    while is_failed:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            is_failed = False
+        except:
+            is_failed = True
     return
 
 
@@ -87,6 +126,16 @@ def generate_high_comp_request(deadline: datetime.datetime, dnn_id: int, task_co
         "Content-Type": "application/json",
     }
 
+    data["request_version"] = str(dt.now().timestamp())
+
     url = f"http://{CONTROLLER_HOST_NAME}:{CONTROLLER_DEFAULT_PORT}{CONTROLLER_HIGH_COMP_ALLOCATION}"
-    response = requests.post(url, json=data, headers=headers)
+
+    is_failed = True
+
+    while is_failed:
+        try:
+            response = requests.post(url, json=data, headers=headers)
+            is_failed = False
+        except:
+            is_failed = True
     return

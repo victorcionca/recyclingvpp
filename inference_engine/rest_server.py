@@ -10,6 +10,7 @@ hostName = "localhost"
 
 device_host_list = []
 
+version_list = []
 
 class RestInterface(BaseHTTPRequestHandler):
 
@@ -59,6 +60,17 @@ class RestInterface(BaseHTTPRequestHandler):
 
             else:
                 json_request = json.loads(request_body)
+
+            if "request_version" in json_request.keys():
+                if json_request["request_version"] in version_list:
+                    print(f"DUPLICATE REQUEST RECEIVED:\n{json_request}")
+                    response_code = 200
+
+                    self.send_response(response_code)
+                    self.end_headers()
+                    return
+                else:
+                    version_list.append(json_request["request_version"])
 
             function = None
             if self.path == Constants.TASK_ALLOCATION:

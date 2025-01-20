@@ -13,16 +13,16 @@ class HighCompResult:
         self.estimated_start = estimated_start
         self.n = n
         self.m = m
-        self.upload_data = upload_data
+        # self.upload_data = upload_data
         self.version = version
 
     def generateFromDict(self, result_json: dict):
         self.allocated_host = result_json["allocated_host"]
         self.dnn_id = result_json["dnn_id"]
-        if self.allocated_host != "self":
-            up_data = LinkAct()
-            up_data.generateFromJson(result_json["upload_data"])
-            self.upload_data = up_data
+        # if self.allocated_host != "self":
+        #     up_data = LinkAct()
+        #     up_data.generateFromJson(result_json["upload_data"])
+        #     self.upload_data = up_data
         self.estimated_start = DataProcessing.from_ms_since_epoch(
             result_json["start_time"])
         self.estimated_finish = DataProcessing.from_ms_since_epoch(
@@ -41,6 +41,6 @@ class HighCompResult:
             "finish_time": int((self.estimated_finish.timestamp()) * 1000),
             "version": self.version,
             "allocated_host": self.allocated_host,
-            "upload_data": self.upload_data.link_act_to_dict()
+            # "upload_data": self.upload_data.link_act_to_dict()
         }
         return result

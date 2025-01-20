@@ -42,16 +42,34 @@ def add_task_to_queue(comm_item: OutboundComm.OutboundComm = OutboundComm.Outbou
 def deadlineViolated(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm()):
     if isinstance(comm_item.payload, dict):
         payload: dict = comm_item.payload
+        payload["request_version"] = str(dt.now().timestamp())
         url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_VIOLATED_DEADLINE}"
-        requests.post(url, json=payload)
+        
+        is_failed = True
+
+        while is_failed:
+            try:
+                requests.post(url, json=payload)
+                is_failed = False
+            except:
+                is_failed = True
     return
 
 
 def stateUpdate(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm()):
     if isinstance(comm_item.payload, dict):
         payload: dict = comm_item.payload
+        payload["request_version"] = str(dt.now().timestamp())
         url = f"http://{Constants.CONTROLLER_HOST_NAME}:{Constants.CONTROLLER_DEFAULT_PORT}{Constants.CONTROLLER_STATE_UPDATE}"
-        requests.post(url, json=payload)
+        
+        is_failed = True
+
+        while is_failed:
+            try:
+                requests.post(url, json=payload)
+                is_failed = False
+            except:
+                is_failed = True
     return
 
 
@@ -61,10 +79,20 @@ def taskForward(comm_item: OutboundComm.OutboundComm = OutboundComm.OutboundComm
         host = comm_item.payload.allocated_host
         url = f"http://{host}:{Constants.REST_PORT}{Constants.TASK_FORWARD}"
 
+        payload["request_version"] = str(dt.now().timestamp())
+
         # Create the multipart payload
         multipart_data = []
         multipart_data.append(('file', open(Constants.INITIAL_FILE_PATH, 'rb')))
         multipart_data.append(('payload', (None, json.dumps(payload), 'application/json')))
 
-        requests.post(url, files=multipart_data)
+        is_failed = True
+
+        while is_failed:
+            try:
+                requests.post(url, files=multipart_data)
+                is_failed = False
+            except:
+                is_failed = True
+
     return
